@@ -1,4 +1,6 @@
-import { Menu, User, Globe } from 'lucide-react';
+import { Menu, User, Globe, LogOut, ChevronDown } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import './Header.css';
 
 interface HeaderProps {
@@ -6,6 +8,39 @@ interface HeaderProps {
 }
 
 export default function Header({ scrolled }: HeaderProps) {
+  const { isLoggedIn, user, logout, openLoginModal } = useAuth();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleAccountClick = () => {
+    if (isLoggedIn) {
+      setDropdownOpen(v => !v);
+    } else {
+      openLoginModal();
+    }
+  };
+
+  const handleRegisterTestDrive = () => {
+    if (!isLoggedIn) {
+      openLoginModal(() => {
+        // After login, user can proceed with test drive registration
+        alert('Vui lòng điền thông tin đăng ký lái thử.');
+      });
+    } else {
+      alert('Vui lòng điền thông tin đăng ký lái thử.');
+    }
+  };
+
   return (
     <header className={`header ${scrolled ? 'scrolled' : ''}`}>
       <div className="header-container">
@@ -39,11 +74,33 @@ export default function Header({ scrolled }: HeaderProps) {
             <Globe size={20} />
             <span>VN</span>
           </button>
-          <button className="icon-btn hide-mobile">
-            <User size={20} />
-            <span>Tài khoản</span>
+
+          {/* Account button */}
+          <div className="account-wrapper hide-mobile" ref={dropdownRef}>
+            <button className="icon-btn" onClick={handleAccountClick}>
+              <User size={20} />
+              <span>{isLoggedIn ? (user?.customer?.fullName || user?.customer?.username || 'Tài khoản') : 'Tài khoản'}</span>
+              {isLoggedIn && <ChevronDown size={14} />}
+            </button>
+
+            {isLoggedIn && dropdownOpen && (
+              <div className="account-dropdown">
+                <div className="account-dropdown-info">
+                  <span className="account-name">{user?.customer?.fullName || user?.customer?.username}</span>
+                  {user?.customer?.email && <span className="account-email">{user.customer.email}</span>}
+                </div>
+                <hr />
+                <button className="account-dropdown-item logout" onClick={() => { logout(); setDropdownOpen(false); }}>
+                  <LogOut size={16} />
+                  Đăng xuất
+                </button>
+              </div>
+            )}
+          </div>
+
+          <button className="btn btn-primary register-btn" onClick={handleRegisterTestDrive}>
+            Đăng ký lái thử
           </button>
-          <button className="btn btn-primary register-btn">Đăng ký lái thử</button>
         </div>
       </div>
     </header>

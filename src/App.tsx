@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
-import Hero from './components/Hero';
-import ModelsShowcase from './components/ModelsShowcase';
-import Promotions from './components/Promotions';
 import Footer from './components/Footer';
+import Home from './pages/Home';
+import CarDetail from './pages/CarDetail';
+import LoginModal from './components/LoginModal';
+import { AuthProvider } from './context/AuthContext';
 
 function App() {
   const [scrolled, setScrolled] = useState(false);
@@ -17,15 +19,19 @@ function App() {
   }, []);
 
   return (
-    <div className="app">
-      <Header scrolled={scrolled} />
-      <main>
-        <Hero />
-        <ModelsShowcase />
-        <Promotions />
-      </main>
-      <Footer />
-    </div>
+    <AuthProvider>
+      <div className="app">
+        <Header scrolled={scrolled} />
+        <main>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/car-detail/:productId" element={<CarDetail />} />
+          </Routes>
+        </main>
+        <Footer />
+        <LoginModal />
+      </div>
+    </AuthProvider>
   );
 }
 

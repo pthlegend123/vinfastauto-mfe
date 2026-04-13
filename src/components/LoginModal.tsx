@@ -1,25 +1,111 @@
-import { useState, useEffect } from 'react';
-import { X, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Eye, EyeOff, Loader2, Phone, ShieldCheck, UserPlus } from 'lucide-react';
 import { authService } from '../services/auth.service';
-import type { RegisterRequest } from '../services/auth.service';
 import { useAuth } from '../context/AuthContext';
 import './LoginModal.css';
 
-type Mode = 'login' | 'register';
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-interface RegForm {
-  username: string;
-  password: string;
-  fullName: string;
-  phone: string;
-  email: string;
-  address: string;
+type Mode = 'login' | 'otp-phone' | 'otp-code' | 'otp-complete';
+
+const OTP_LENGTH = 6;
+const RESEND_SECONDS = 60;
+
+// ─── OTP digit input component ───────────────────────────────────────────────
+
+interface OtpInputProps {
+  value: string[];
+  onChange: (v: string[]) => void;
+  disabled: boolean;
 }
 
-const EMPTY_REG: RegForm = {
-  username: '', password: '', fullName: '',
-  phone: '', email: '', address: '',
-};
+function OtpInput({ value, onChange, disabled }: OtpInputProps) {
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const handleChange = (idx: number, char: string) => {
+    const digit = char.replace(/\D/g, '').slice(-1);
+    const next = [...value];
+    next[idx] = digit;
+    onChange(next);
+    if (digit && idx < OTP_LENGTH - 1) refs.current[idx + 1]?.focus();
+  };
+
+  const handleKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (value[idx]) {
+        const next = [...value];
+        next[idx] = '';
+        onChange(next);
+      } else if (idx > 0) {
+        refs.current[idx - 1]?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && idx > 0) {
+      refs.current[idx - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && idx < OTP_LENGTH - 1) {
+      refs.current[idx + 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, OTP_LENGTH);
+    const next = Array(OTP_LENGTH).fill('');
+    text.split('').forEach((c, i) => { next[i] = c; });
+    onChange(next);
+    const focusIdx = Math.min(text.length, OTP_LENGTH - 1);
+    refs.current[focusIdx]?.focus();
+  };
+
+  return (
+    <div className="otp-inputs">
+      {Array.from({ length: OTP_LENGTH }).map((_, i) => (
+        <input
+          key={i}
+          ref={el => { refs.current[i] = el; }}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          className="otp-box"
+          value={value[i] ?? ''}
+          onChange={e => handleChange(i, e.target.value)}
+          onKeyDown={e => handleKeyDown(i, e)}
+          onPaste={handlePaste}
+          onFocus={e => e.target.select()}
+          disabled={disabled}
+          autoComplete="one-time-code"
+          aria-label={`Chữ số OTP thứ ${i + 1}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Step indicator ───────────────────────────────────────────────────────────
+
+function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
+  const steps = [
+    { icon: <Phone size={14} />, label: 'Số điện thoại' },
+    { icon: <ShieldCheck size={14} />, label: 'Xác thực OTP' },
+    { icon: <UserPlus size={14} />, label: 'Hoàn tất' },
+  ];
+  return (
+    <div className="step-indicator">
+      {steps.map((s, i) => {
+        const n = i + 1;
+        const state = n < step ? 'done' : n === step ? 'active' : 'pending';
+        return (
+          <div key={i} className={`step-item step-item--${state}`}>
+            <div className="step-circle">{state === 'done' ? '✓' : s.icon}</div>
+            <span className="step-label">{s.label}</span>
+            {i < steps.length - 1 && <div className="step-line" />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export default function LoginModal() {
   const { loginModalOpen, closeLoginModal, login, pendingCallback } = useAuth();
@@ -30,28 +116,56 @@ export default function LoginModal() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Register
-  const [reg, setReg] = useState<RegForm>(EMPTY_REG);
+  // OTP flow state
+  const [otpPhone, setOtpPhone] = useState('');
+  const [otpDigits, setOtpDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
+  const [fullName, setFullName] = useState('');
+  const [regPassword, setRegPassword] = useState('');
   const [showRegPassword, setShowRegPassword] = useState(false);
-  const [registerSuccess, setRegisterSuccess] = useState(false);
+
+  // Resend timer
+  const [resendTimer, setResendTimer] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [registerSuccess, setRegisterSuccess] = useState(false);
 
+  const clearTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+  };
+
+  const startResendTimer = () => {
+    clearTimer();
+    setResendTimer(RESEND_SECONDS);
+    timerRef.current = setInterval(() => {
+      setResendTimer(prev => {
+        if (prev <= 1) { clearTimer(); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // Reset on modal open
   useEffect(() => {
     if (loginModalOpen) {
       setMode('login');
       setUsername(''); setPassword(''); setShowPassword(false);
-      setReg(EMPTY_REG); setShowRegPassword(false);
+      setOtpPhone(''); setOtpDigits(Array(OTP_LENGTH).fill(''));
+      setFullName(''); setRegPassword(''); setShowRegPassword(false);
       setRegisterSuccess(false); setError('');
+      clearTimer();
     }
+    return () => clearTimer();
   }, [loginModalOpen]);
 
   if (!loginModalOpen) return null;
 
-  const switchMode = (next: Mode) => { setMode(next); setError(''); setRegisterSuccess(false); };
+  const switchMode = (next: Mode) => { setMode(next); setError(''); };
 
-  /* ---- Login ---- */
+  // ── Login ─────────────────────────────────────────────────────────────────
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password.trim()) { setError('Vui lòng nhập đầy đủ thông tin'); return; }
@@ -69,32 +183,70 @@ export default function LoginModal() {
     finally { setLoading(false); }
   };
 
-  /* ---- Register ---- */
-  const handleRegister = async (e: React.FormEvent) => {
+  // ── Step 1: Send OTP ──────────────────────────────────────────────────────
+
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { username: u, password: p, fullName, phone, email, address } = reg;
-
-    if (!u.trim() || !p.trim() || !fullName.trim() || !phone.trim()) {
-      setError('Vui lòng điền đầy đủ thông tin bắt buộc'); return;
-    }
-    if (!/^\d{9,11}$/.test(phone.trim())) { setError('Số điện thoại không hợp lệ (9–11 chữ số)'); return; }
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      setError('Địa chỉ email không hợp lệ'); return;
-    }
-    if (p.length < 6) { setError('Mật khẩu tối thiểu 6 ký tự'); return; }
-
-    const payload: RegisterRequest = {
-      username: u.trim(),
-      password: p,
-      fullName: fullName.trim(),
-      phone: phone.trim(),
-      ...(email.trim() && { email: email.trim() }),
-      ...(address.trim() && { address: address.trim() }),
-    };
-
+    const phone = otpPhone.trim().replace(/\s/g, '');
+    if (!/^\d{9,11}$/.test(phone)) { setError('Số điện thoại không hợp lệ (9–11 chữ số)'); return; }
     setLoading(true); setError('');
     try {
-      const res = await authService.register(payload);
+      const res = await authService.otpSend(phone);
+      if (res.code === 200) {
+        setOtpPhone(phone);
+        setOtpDigits(Array(OTP_LENGTH).fill(''));
+        switchMode('otp-code');
+        startResendTimer();
+      } else {
+        setError(res.message || 'Không thể gửi OTP. Vui lòng thử lại.');
+      }
+    } catch { setError('Không thể kết nối máy chủ. Vui lòng thử lại.'); }
+    finally { setLoading(false); }
+  };
+
+  // ── Step 2: Verify OTP ────────────────────────────────────────────────────
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = otpDigits.join('');
+    if (code.length < OTP_LENGTH) { setError('Vui lòng nhập đủ 6 chữ số'); return; }
+    setLoading(true); setError('');
+    try {
+      const res = await authService.otpVerify(otpPhone, code);
+      if (res.code === 200) {
+        clearTimer();
+        switchMode('otp-complete');
+      } else {
+        setError(res.message || 'Mã OTP không đúng hoặc đã hết hạn');
+      }
+    } catch { setError('Không thể kết nối máy chủ. Vui lòng thử lại.'); }
+    finally { setLoading(false); }
+  };
+
+  const handleResend = async () => {
+    if (resendTimer > 0) return;
+    setLoading(true); setError('');
+    try {
+      const res = await authService.otpSend(otpPhone);
+      if (res.code === 200) {
+        setOtpDigits(Array(OTP_LENGTH).fill(''));
+        startResendTimer();
+      } else {
+        setError(res.message || 'Không thể gửi lại OTP');
+      }
+    } catch { setError('Không thể kết nối máy chủ. Vui lòng thử lại.'); }
+    finally { setLoading(false); }
+  };
+
+  // ── Step 3: Complete registration ─────────────────────────────────────────
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim()) { setError('Vui lòng nhập họ và tên'); return; }
+    if (regPassword.length < 6) { setError('Mật khẩu tối thiểu 6 ký tự'); return; }
+    setLoading(true); setError('');
+    try {
+      const res = await authService.otpRegister(otpPhone, fullName.trim(), regPassword);
       if (res.code === 200 || res.code === 201) {
         setRegisterSuccess(true);
       } else {
@@ -104,12 +256,12 @@ export default function LoginModal() {
     finally { setLoading(false); }
   };
 
-  const setField = (field: keyof RegForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setReg(prev => ({ ...prev, [field]: e.target.value }));
-
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) closeLoginModal();
   };
+
+  const isRegisterMode = mode !== 'login';
+  const stepNumber = mode === 'otp-phone' ? 1 : mode === 'otp-code' ? 2 : 3;
 
   return (
     <div className="login-overlay" onClick={handleOverlayClick}>
@@ -121,15 +273,17 @@ export default function LoginModal() {
             <path d="M50 80L10 20H30L50 50L70 20H90L50 80Z" />
           </svg>
           <h2>{mode === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}</h2>
-          <p>{mode === 'login' ? 'Vui lòng đăng nhập để tiếp tục' : 'Điền thông tin để đăng ký tài khoản'}</p>
+          <p>{mode === 'login' ? 'Vui lòng đăng nhập để tiếp tục' : 'Đăng ký bằng số điện thoại'}</p>
         </div>
 
         <div className="auth-tabs">
-          <button type="button" className={`auth-tab ${mode === 'login' ? 'active' : ''}`} onClick={() => switchMode('login')}>Đăng nhập</button>
-          <button type="button" className={`auth-tab ${mode === 'register' ? 'active' : ''}`} onClick={() => switchMode('register')}>Đăng ký</button>
+          <button type="button" className={`auth-tab ${mode === 'login' ? 'active' : ''}`}
+            onClick={() => { switchMode('login'); }}>Đăng nhập</button>
+          <button type="button" className={`auth-tab ${isRegisterMode ? 'active' : ''}`}
+            onClick={() => { if (!isRegisterMode) switchMode('otp-phone'); }}>Đăng ký</button>
         </div>
 
-        {/* ---- LOGIN ---- */}
+        {/* ── LOGIN ── */}
         {mode === 'login' && (
           <form className="login-form" onSubmit={handleLogin} noValidate>
             <div className="login-field">
@@ -154,13 +308,13 @@ export default function LoginModal() {
             </button>
             <p className="auth-switch-hint">
               Chưa có tài khoản?{' '}
-              <button type="button" className="auth-switch-link" onClick={() => switchMode('register')}>Đăng ký ngay</button>
+              <button type="button" className="auth-switch-link" onClick={() => switchMode('otp-phone')}>Đăng ký ngay</button>
             </p>
           </form>
         )}
 
-        {/* ---- REGISTER ---- */}
-        {mode === 'register' && (
+        {/* ── REGISTER STEPS ── */}
+        {isRegisterMode && (
           <>
             {registerSuccess ? (
               <div className="register-success">
@@ -170,68 +324,92 @@ export default function LoginModal() {
                 <button className="login-submit" onClick={() => switchMode('login')}>Đăng nhập ngay</button>
               </div>
             ) : (
-              <form className="login-form" onSubmit={handleRegister} noValidate>
+              <>
+                <StepIndicator step={stepNumber as 1 | 2 | 3} />
 
-                <p className="form-section-label">Thông tin cá nhân</p>
-
-                <div className="login-field">
-                  <label htmlFor="reg-fullname">Họ và tên <span className="required">*</span></label>
-                  <input id="reg-fullname" type="text" placeholder="Nguyễn Văn A"
-                    value={reg.fullName} onChange={setField('fullName')} disabled={loading} autoFocus />
-                </div>
-
-                <div className="login-field">
-                  <label htmlFor="reg-username">Tên đăng nhập <span className="required">*</span></label>
-                  <input id="reg-username" type="text" placeholder="username"
-                    value={reg.username} onChange={setField('username')} disabled={loading} />
-                </div>
-
-                <div className="login-field">
-                  <label htmlFor="reg-phone">Số điện thoại <span className="required">*</span></label>
-                  <input id="reg-phone" type="tel" placeholder="0912 345 678"
-                    value={reg.phone} onChange={setField('phone')} disabled={loading} />
-                </div>
-
-                <div className="login-field">
-                  <label htmlFor="reg-email">
-                    Email <span className="optional">(tuỳ chọn)</span>
-                  </label>
-                  <input id="reg-email" type="email" placeholder="example@gmail.com"
-                    value={reg.email} onChange={setField('email')} disabled={loading} />
-                </div>
-
-                <div className="login-field">
-                  <label htmlFor="reg-address">
-                    Địa chỉ <span className="optional">(tuỳ chọn)</span>
-                  </label>
-                  <input id="reg-address" type="text"
-                    placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành"
-                    value={reg.address} onChange={setField('address')} disabled={loading} />
-                </div>
-
-                <div className="login-field">
-                  <label htmlFor="reg-password">Mật khẩu <span className="required">*</span></label>
-                  <div className="password-wrapper">
-                    <input id="reg-password" type={showRegPassword ? 'text' : 'password'}
-                      placeholder="Tối thiểu 6 ký tự" value={reg.password}
-                      onChange={setField('password')} disabled={loading} />
-                    <button type="button" className="toggle-password" onClick={() => setShowRegPassword(v => !v)} tabIndex={-1}>
-                      {showRegPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                {/* Step 1 — Phone */}
+                {mode === 'otp-phone' && (
+                  <form className="login-form" onSubmit={handleSendOtp} noValidate>
+                    <div className="login-field">
+                      <label htmlFor="otp-phone">Số điện thoại <span className="required">*</span></label>
+                      <input id="otp-phone" type="tel" placeholder="0912 345 678"
+                        value={otpPhone} onChange={e => setOtpPhone(e.target.value)}
+                        disabled={loading} autoFocus />
+                      <span className="field-hint">Mã OTP sẽ được gửi đến số này</span>
+                    </div>
+                    {error && <p className="login-error">{error}</p>}
+                    <button type="submit" className="login-submit" disabled={loading}>
+                      {loading ? <><Loader2 size={18} className="spin" /> Đang gửi...</> : 'Gửi mã OTP'}
                     </button>
-                  </div>
-                </div>
+                    <p className="auth-switch-hint">
+                      Đã có tài khoản?{' '}
+                      <button type="button" className="auth-switch-link" onClick={() => switchMode('login')}>Đăng nhập</button>
+                    </p>
+                  </form>
+                )}
 
-                {error && <p className="login-error">{error}</p>}
+                {/* Step 2 — OTP code */}
+                {mode === 'otp-code' && (
+                  <form className="login-form" onSubmit={handleVerifyOtp} noValidate>
+                    <div className="otp-sent-notice">
+                      <ShieldCheck size={18} />
+                      <span>Mã OTP đã gửi đến <strong>{otpPhone}</strong></span>
+                    </div>
+                    <div className="login-field">
+                      <label>Nhập mã OTP <span className="required">*</span></label>
+                      <OtpInput value={otpDigits} onChange={setOtpDigits} disabled={loading} />
+                    </div>
+                    <div className="otp-resend-row">
+                      {resendTimer > 0 ? (
+                        <span className="otp-timer">Gửi lại sau <strong>{resendTimer}s</strong></span>
+                      ) : (
+                        <button type="button" className="auth-switch-link" onClick={handleResend} disabled={loading}>
+                          Gửi lại mã OTP
+                        </button>
+                      )}
+                      <button type="button" className="auth-switch-link otp-change-phone"
+                        onClick={() => { clearTimer(); switchMode('otp-phone'); }}>
+                        Đổi số điện thoại
+                      </button>
+                    </div>
+                    {error && <p className="login-error">{error}</p>}
+                    <button type="submit" className="login-submit" disabled={loading || otpDigits.join('').length < OTP_LENGTH}>
+                      {loading ? <><Loader2 size={18} className="spin" /> Đang xác thực...</> : 'Xác thực OTP'}
+                    </button>
+                  </form>
+                )}
 
-                <button type="submit" className="login-submit" disabled={loading}>
-                  {loading ? <><Loader2 size={18} className="spin" /> Đang đăng ký...</> : 'Tạo tài khoản'}
-                </button>
-
-                <p className="auth-switch-hint">
-                  Đã có tài khoản?{' '}
-                  <button type="button" className="auth-switch-link" onClick={() => switchMode('login')}>Đăng nhập</button>
-                </p>
-              </form>
+                {/* Step 3 — Complete */}
+                {mode === 'otp-complete' && (
+                  <form className="login-form" onSubmit={handleRegister} noValidate>
+                    <div className="otp-sent-notice otp-sent-notice--success">
+                      <ShieldCheck size={18} />
+                      <span>Số điện thoại <strong>{otpPhone}</strong> đã xác thực</span>
+                    </div>
+                    <div className="login-field">
+                      <label htmlFor="reg-fullname">Họ và tên <span className="required">*</span></label>
+                      <input id="reg-fullname" type="text" placeholder="Nguyễn Văn A"
+                        value={fullName} onChange={e => setFullName(e.target.value)}
+                        disabled={loading} autoFocus />
+                    </div>
+                    <div className="login-field">
+                      <label htmlFor="reg-password">Mật khẩu <span className="required">*</span></label>
+                      <div className="password-wrapper">
+                        <input id="reg-password" type={showRegPassword ? 'text' : 'password'}
+                          placeholder="Tối thiểu 6 ký tự" value={regPassword}
+                          onChange={e => setRegPassword(e.target.value)} disabled={loading} />
+                        <button type="button" className="toggle-password" onClick={() => setShowRegPassword(v => !v)} tabIndex={-1}>
+                          {showRegPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+                    {error && <p className="login-error">{error}</p>}
+                    <button type="submit" className="login-submit" disabled={loading}>
+                      {loading ? <><Loader2 size={18} className="spin" /> Đang tạo tài khoản...</> : 'Hoàn tất đăng ký'}
+                    </button>
+                  </form>
+                )}
+              </>
             )}
           </>
         )}

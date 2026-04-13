@@ -11,7 +11,9 @@ export interface CustomerInfo {
   username: string;
   fullName: string;
   phone: string;
+  isPhoneVerified: boolean;
   email: string;
+  isEmailVerified: boolean;
   address: string;
   kycStatus: string;
   status: string;
@@ -27,26 +29,15 @@ export interface LoginResponse {
   };
 }
 
-export interface RegisterRequest {
-  username: string;
-  password: string;
-  fullName: string;
-  /** Bắt buộc */
-  phone: string;
-  /** Tuỳ chọn */
-  email?: string;
-  address?: string;
-}
-
-export interface RegisterResponse {
+export interface ApiResponse<T = unknown> {
   code: number;
   message: string;
-  data?: unknown;
+  data?: T;
 }
 
 export const authService = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
-    const response = await fetch(`${BASE_URL}/auth/login`, {
+    const response = await fetch(`${BASE_URL}/auth/customer/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(credentials),
@@ -76,16 +67,40 @@ export const authService = {
     }
   },
 
-  register: async (data: RegisterRequest): Promise<RegisterResponse> => {
-    const response = await fetch(`${BASE_URL}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return response.json() as Promise<RegisterResponse>;
-  },
-
   isLoggedIn: (): boolean => {
     return !!localStorage.getItem('auth_token');
+  },
+
+  // ── OTP registration flow ──────────────────────────────────────────────────
+
+  otpSend: async (phone: string): Promise<ApiResponse> => {
+    const response = await fetch(`${BASE_URL}/otp/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    return response.json() as Promise<ApiResponse>;
+  },
+
+  otpVerify: async (phone: string, otpCode: string): Promise<ApiResponse> => {
+    const response = await fetch(`${BASE_URL}/otp/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, otpCode }),
+    });
+    return response.json() as Promise<ApiResponse>;
+  },
+
+  otpRegister: async (
+    phone: string,
+    fullName: string,
+    password: string,
+  ): Promise<ApiResponse<CustomerInfo>> => {
+    const response = await fetch(`${BASE_URL}/otp/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, fullName, password }),
+    });
+    return response.json() as Promise<ApiResponse<CustomerInfo>>;
   },
 };

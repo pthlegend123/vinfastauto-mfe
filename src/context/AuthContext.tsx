@@ -19,7 +19,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(() => authService.isLoggedIn());
-  const [user, setUser] = useState<AuthUser>(() => authService.getStoredUser());
+  const [user, setUser] = useState<AuthUser>(() => authService.getStoredUser() ?? undefined);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [pendingCallback, setPendingCallback] = useState<(() => void) | null>(null);
 
@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     authService.clearSession();
-    setUser(null);
+    setUser(undefined);
     setIsLoggedIn(false);
   }, []);
 

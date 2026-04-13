@@ -2,8 +2,9 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { productService } from '../services/product.service';
 import { sharedDataService } from '../services/shared-data.service';
-import type { Product } from '../types/product.types';
-import { ArrowLeft, Shield, Gauge, Users } from 'lucide-react';
+import { orderService } from '../services/order.service';
+import type { Product, ProductSku, ProductVariant } from '../types/product.types';
+import { ArrowLeft, Shield, Gauge, Users, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import './CarDetail.css';
 
@@ -13,11 +14,75 @@ export default function CarDetail() {
   const location = useLocation();
   const { isLoggedIn, openLoginModal } = useAuth();
 
+  const [product, setProduct] = useState<Product | null>(location.state?.product || null);
+  const [loading, setLoading] = useState(!location.state?.product);
+  const [error, setError] = useState<string | null>(null);
+  const hasFetched = useRef(false);
+
+  // Order modal state
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+  const [selectedSku, setSelectedSku] = useState<ProductSku | null>(null);
+  const [depositAmount, setDepositAmount] = useState('');
+  const [orderNote, setOrderNote] = useState('');
+  const [orderLoading, setOrderLoading] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+
+  const openOrderModal = () => {
+    if (!product) return;
+    const firstVariant = product.variants?.[0] ?? null;
+    setSelectedVariant(firstVariant);
+    setSelectedSku(firstVariant?.skus?.[0] ?? null);
+    setDepositAmount(
+      firstVariant?.price ? String(Math.round(firstVariant.price * 0.1)) : ''
+    );
+    setOrderNote('');
+    setOrderError(null);
+    setOrderModalOpen(true);
+  };
+
+  const handleVariantSelect = (variant: ProductVariant) => {
+    setSelectedVariant(variant);
+    setSelectedSku(variant.skus?.[0] ?? null);
+    setDepositAmount(variant.price ? String(Math.round(variant.price * 0.1)) : '');
+  };
+
+  const handleOrderSubmit = async () => {
+    if (!selectedSku) {
+      setOrderError('Vui lòng chọn màu sắc.');
+      return;
+    }
+    const deposit = Number(depositAmount);
+    if (!depositAmount || isNaN(deposit) || deposit <= 0) {
+      setOrderError('Vui lòng nhập số tiền đặt cọc hợp lệ.');
+      return;
+    }
+    setOrderLoading(true);
+    setOrderError(null);
+    try {
+      const res = await orderService.createOrder({
+        skuCode: selectedSku.sku,
+        depositAmount: deposit,
+        note: orderNote || undefined,
+      });
+      if (res.code === 200 && res.data) {
+        setOrderModalOpen(false);
+        navigate('/my-orders');
+      } else {
+        setOrderError(res.message || 'Đặt cọc thất bại. Vui lòng thử lại.');
+      }
+    } catch {
+      setOrderError('Lỗi kết nối máy chủ. Vui lòng thử lại.');
+    } finally {
+      setOrderLoading(false);
+    }
+  };
+
   const handleDeposit = () => {
     if (!isLoggedIn) {
-      openLoginModal(() => alert('Vui lòng điền thông tin đặt cọc.'));
+      openLoginModal(openOrderModal);
     } else {
-      alert('Vui lòng điền thông tin đặt cọc.');
+      openOrderModal();
     }
   };
 
@@ -28,17 +93,22 @@ export default function CarDetail() {
       alert('Chúng tôi sẽ liên hệ tư vấn cho bạn.');
     }
   };
-  const [product, setProduct] = useState<Product | null>(location.state?.product || null);
-  const [loading, setLoading] = useState(!location.state?.product);
-  const [error, setError] = useState<string | null>(null);
-  const hasFetched = useRef(false);
+
+  const handleTestDrive = () => {
+    if (!isLoggedIn) {
+      openLoginModal(() => {
+        navigate(`/test-drive-book/${productId}`);
+      });
+    } else {
+      navigate(`/test-drive-book/${productId}`);
+    }
+  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
-    if (product) return; // Already have product from location state
+    if (product) return;
     if (!productId) return;
 
-    // Fast path: Check our shared data service first
     if (sharedDataService.hasFetchedProducts) {
       const foundProduct = sharedDataService.getProductByCode(productId);
       if (foundProduct) {
@@ -50,19 +120,15 @@ export default function CarDetail() {
       return;
     }
 
-    // Prevent double call caused by React.StrictMode in development
     if (hasFetched.current) return;
     hasFetched.current = true;
 
     const fetchDetail = async () => {
       try {
         setLoading(true);
-        // Fallback: fetch all products and find the matching one
         const responseData = await productService.getAllProducts();
         if (responseData.code === 200 && responseData.data?.content) {
-          // Save to shared data service so other components can benefit
           sharedDataService.setProducts(responseData.data.content);
-          
           const foundProduct = sharedDataService.getProductByCode(productId);
           if (foundProduct) {
             setProduct(foundProduct);
@@ -104,22 +170,22 @@ export default function CarDetail() {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
   };
 
-  const getLowestPrice = (product: Product) => {
-    if (!product.variants || product.variants.length === 0) return null;
-    const prices = product.variants.map(v => v.price).filter(Boolean);
+  const getLowestPrice = (p: Product) => {
+    if (!p.variants || p.variants.length === 0) return null;
+    const prices = p.variants.map(v => v.price).filter(Boolean);
     return prices.length > 0 ? Math.min(...prices) : null;
   };
 
-  const getThumbnail = (product: Product) => {
-    if (!product.variants) return '/images/vf_model_suv.png';
-    for (const variant of product.variants) {
+  const getThumbnail = (p: Product) => {
+    if (!p.variants) return '/images/vf_model_suv.png';
+    for (const variant of p.variants) {
       if (!variant.skus) continue;
       for (const sku of variant.skus) {
         const thumb = sku.images?.find(img => img.isThumbnail);
         if (thumb) return thumb.imageUrl;
       }
     }
-    const firstImage = product.variants[0]?.skus?.[0]?.images?.[0]?.imageUrl;
+    const firstImage = p.variants[0]?.skus?.[0]?.images?.[0]?.imageUrl;
     return firstImage || '/images/vf_model_suv.png';
   };
 
@@ -135,25 +201,26 @@ export default function CarDetail() {
 
       <div className="car-detail-hero">
         <div className="car-detail-image">
-           <img 
-              src={getThumbnail(product)}
-              alt={product.name} 
-           />
+          <img
+            src={getThumbnail(product)}
+            alt={product.name}
+          />
         </div>
-        
+
         <div className="car-detail-info">
           <span className="car-type-badge">{product.type === 'CAR' ? 'Ô TÔ ĐIỆN' : 'XE MÁY ĐIỆN'}</span>
           <h1 className="car-title">{product.name}</h1>
           <p className="car-desc">{product.description}</p>
-          
+
           <div className="car-price-block">
             <span className="price-label">Giá từ</span>
             <span className="price-value">{lowestPrice ? formatPrice(lowestPrice) : 'Liên hệ'}</span>
           </div>
 
           <div className="car-action-buttons">
-             <button className="btn btn-primary" onClick={handleDeposit}>ĐẶT CỌC NGAY</button>
-             <button className="btn btn-outline" onClick={handleConsult}>NHẬN TƯ VẤN</button>
+            <button className="btn btn-primary" onClick={handleDeposit}>ĐẶT CỌC NGAY</button>
+            <button className="btn btn-outline" onClick={handleConsult}>NHẬN TƯ VẤN</button>
+            <button className="btn btn-outline" onClick={handleTestDrive}>LÁI THỬ</button>
           </div>
         </div>
       </div>
@@ -180,7 +247,7 @@ export default function CarDetail() {
             </div>
           )}
           {product.carSpec?.drivetrain && (
-             <div className="spec-item">
+            <div className="spec-item">
               <Gauge size={32} />
               <div className="spec-text">
                 <span className="spec-val">{product.carSpec.drivetrain}</span>
@@ -196,7 +263,7 @@ export default function CarDetail() {
           <h2>Các phiên bản</h2>
           <div className="variants-list">
             {product.variants.map(variant => (
-              <div key={variant.id} className="variant-card">
+              <div key={variant.variantCode} className="variant-card">
                 <h3>{variant.variantName}</h3>
                 <p className="variant-price">{formatPrice(variant.price)}</p>
                 <div className="variant-details">
@@ -205,19 +272,114 @@ export default function CarDetail() {
                 </div>
                 {variant.skus && variant.skus.length > 0 && (
                   <div className="variant-colors">
-                    Màu sắc: 
+                    Màu sắc:
                     <div className="color-dots">
                       {variant.skus
-                         .map(s => s.color)
-                         .filter((v, i, a) => v && a.findIndex(t => t?.colorCode === v?.colorCode) === i)
-                         .map(c => (
-                        <span key={c?.colorCode} className="color-dot" style={{ backgroundColor: c?.colorHex || '#ccc' }} title={c?.colorName}></span>
-                      ))}
+                        .map(s => s.color)
+                        .filter((v, i, a) => v && a.findIndex(t => t?.colorCode === v?.colorCode) === i)
+                        .map(c => (
+                          <span key={c?.colorCode} className="color-dot" style={{ backgroundColor: c?.colorHex || '#ccc' }} title={c?.colorName}></span>
+                        ))}
                     </div>
                   </div>
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Order (Deposit) Modal */}
+      {orderModalOpen && (
+        <div className="order-modal-overlay" onClick={() => setOrderModalOpen(false)}>
+          <div className="order-modal" onClick={e => e.stopPropagation()}>
+            <div className="order-modal-header">
+              <h2>Đặt cọc xe {product.name}</h2>
+              <button className="order-modal-close" onClick={() => setOrderModalOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="order-modal-body">
+              {product.variants && product.variants.length > 0 && (
+                <div className="order-field">
+                  <label>Chọn phiên bản</label>
+                  <div className="order-variant-list">
+                    {product.variants.map(variant => (
+                      <button
+                        key={variant.variantCode}
+                        className={`order-variant-btn${selectedVariant?.variantCode === variant.variantCode ? ' selected' : ''}`}
+                        onClick={() => handleVariantSelect(variant)}
+                      >
+                        <span className="order-variant-name">{variant.variantName}</span>
+                        <span className="order-variant-price">{formatPrice(variant.price)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedVariant?.skus && selectedVariant.skus.length > 0 && (
+                <div className="order-field">
+                  <label>Chọn màu sắc</label>
+                  <div className="order-sku-list">
+                    {selectedVariant.skus.map(sku => (
+                      <button
+                        key={sku.sku}
+                        className={`order-sku-btn${selectedSku?.sku === sku.sku ? ' selected' : ''}`}
+                        onClick={() => setSelectedSku(sku)}
+                        title={sku.color?.colorName}
+                      >
+                        <span
+                          className="order-color-swatch"
+                          style={{ backgroundColor: sku.color?.colorHex || '#ccc' }}
+                        />
+                        <span>{sku.color?.colorName || 'Không rõ'}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="order-field">
+                <label>Số tiền đặt cọc (VND)</label>
+                <input
+                  type="number"
+                  className="order-input"
+                  value={depositAmount}
+                  onChange={e => setDepositAmount(e.target.value)}
+                  placeholder="Nhập số tiền đặt cọc"
+                  min={1}
+                />
+                {selectedVariant?.price && (
+                  <span className="order-deposit-hint">
+                    Gợi ý: {formatPrice(Math.round(selectedVariant.price * 0.1))} (10% giá xe)
+                  </span>
+                )}
+              </div>
+
+              <div className="order-field">
+                <label>Ghi chú (tuỳ chọn)</label>
+                <textarea
+                  className="order-input"
+                  value={orderNote}
+                  onChange={e => setOrderNote(e.target.value)}
+                  placeholder="Ghi chú thêm cho đơn hàng..."
+                  rows={3}
+                />
+              </div>
+
+              {orderError && <p className="order-error">{orderError}</p>}
+            </div>
+
+            <div className="order-modal-footer">
+              <button className="btn btn-outline" onClick={() => setOrderModalOpen(false)} disabled={orderLoading}>
+                Huỷ
+              </button>
+              <button className="btn btn-primary" onClick={handleOrderSubmit} disabled={orderLoading}>
+                {orderLoading ? 'Đang xử lý...' : 'Xác nhận đặt cọc'}
+              </button>
+            </div>
           </div>
         </div>
       )}

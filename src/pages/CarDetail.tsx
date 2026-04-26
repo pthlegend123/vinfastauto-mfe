@@ -2,10 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { productService } from '../services/product.service';
 import { sharedDataService } from '../services/shared-data.service';
-import { orderService } from '../services/order.service';
 import type { Product, ProductSku, ProductVariant } from '../types/product.types';
-import { ArrowLeft, Shield, Gauge, Users, X } from 'lucide-react';
+import { ArrowLeft, Shield, Gauge, Users, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useModal } from '../context/ModalContext';
 import './CarDetail.css';
 
 export default function CarDetail() {
@@ -13,76 +13,37 @@ export default function CarDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoggedIn, openLoginModal } = useAuth();
+  const { openOrderModal, openTestDriveModal } = useModal();
 
   const [product, setProduct] = useState<Product | null>(location.state?.product || null);
   const [loading, setLoading] = useState(!location.state?.product);
   const [error, setError] = useState<string | null>(null);
   const hasFetched = useRef(false);
 
-  // Order modal state
-  const [orderModalOpen, setOrderModalOpen] = useState(false);
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
-  const [selectedSku, setSelectedSku] = useState<ProductSku | null>(null);
-  const [depositAmount, setDepositAmount] = useState('');
-  const [orderNote, setOrderNote] = useState('');
-  const [orderLoading, setOrderLoading] = useState(false);
-  const [orderError, setOrderError] = useState<string | null>(null);
+  // View state — drives image + color picker display
+  const [viewVariant, setViewVariant] = useState<ProductVariant | null>(null);
+  const [viewSku, setViewSku] = useState<ProductSku | null>(null);
 
-  const openOrderModal = () => {
-    if (!product) return;
-    const firstVariant = product.variants?.[0] ?? null;
-    setSelectedVariant(firstVariant);
-    setSelectedSku(firstVariant?.skus?.[0] ?? null);
-    setDepositAmount(
-      firstVariant?.price ? String(Math.round(firstVariant.price * 0.1)) : ''
-    );
-    setOrderNote('');
-    setOrderError(null);
-    setOrderModalOpen(true);
-  };
+  // Init view state once product is available
+  useEffect(() => {
+    if (product && !viewVariant) {
+      const first = product.variants?.[0] ?? null;
+      setViewVariant(first);
+      setViewSku(first?.skus?.[0] ?? null);
+    }
+  }, [product, viewVariant]);
 
-  const handleVariantSelect = (variant: ProductVariant) => {
-    setSelectedVariant(variant);
-    setSelectedSku(variant.skus?.[0] ?? null);
-    setDepositAmount(variant.price ? String(Math.round(variant.price * 0.1)) : '');
-  };
-
-  const handleOrderSubmit = async () => {
-    if (!selectedSku) {
-      setOrderError('Vui lòng chọn màu sắc.');
-      return;
-    }
-    const deposit = Number(depositAmount);
-    if (!depositAmount || isNaN(deposit) || deposit <= 0) {
-      setOrderError('Vui lòng nhập số tiền đặt cọc hợp lệ.');
-      return;
-    }
-    setOrderLoading(true);
-    setOrderError(null);
-    try {
-      const res = await orderService.createOrder({
-        skuCode: selectedSku.sku,
-        depositAmount: deposit,
-        note: orderNote || undefined,
-      });
-      if (res.code === 200 && res.data) {
-        setOrderModalOpen(false);
-        navigate('/my-orders');
-      } else {
-        setOrderError(res.message || 'Đặt cọc thất bại. Vui lòng thử lại.');
-      }
-    } catch {
-      setOrderError('Lỗi kết nối máy chủ. Vui lòng thử lại.');
-    } finally {
-      setOrderLoading(false);
-    }
+  const handleViewVariantSelect = (variant: ProductVariant) => {
+    setViewVariant(variant);
+    setViewSku(variant.skus?.[0] ?? null);
   };
 
   const handleDeposit = () => {
+    if (!product) return;
     if (!isLoggedIn) {
-      openLoginModal(openOrderModal);
+      openLoginModal(() => openOrderModal(product));
     } else {
-      openOrderModal();
+      openOrderModal(product);
     }
   };
 
@@ -96,12 +57,14 @@ export default function CarDetail() {
 
   const handleTestDrive = () => {
     if (!isLoggedIn) {
-      openLoginModal(() => {
-        navigate(`/test-drive-book/${productId}`);
-      });
+      openLoginModal(() => openTestDriveModal(productId, viewVariant?.variantCode));
     } else {
-      navigate(`/test-drive-book/${productId}`);
+      openTestDriveModal(productId, viewVariant?.variantCode);
     }
+  };
+
+  const handleBack = () => {
+    if (window.history.length > 1) { navigate(-1); } else { navigate('/'); }
   };
 
   useEffect(() => {
@@ -110,12 +73,8 @@ export default function CarDetail() {
     if (!productId) return;
 
     if (sharedDataService.hasFetchedProducts) {
-      const foundProduct = sharedDataService.getProductByCode(productId);
-      if (foundProduct) {
-        setProduct(foundProduct);
-      } else {
-        setError('Không tìm thấy thông tin sản phẩm');
-      }
+      const found = sharedDataService.getProductByCode(productId);
+      if (found) { setProduct(found); } else { setError('Không tìm thấy thông tin sản phẩm'); }
       setLoading(false);
       return;
     }
@@ -126,31 +85,22 @@ export default function CarDetail() {
     const fetchDetail = async () => {
       try {
         setLoading(true);
-        const responseData = await productService.getAllProducts();
-        if (responseData.code === 200 && responseData.data?.content) {
-          sharedDataService.setProducts(responseData.data.content);
-          const foundProduct = sharedDataService.getProductByCode(productId);
-          if (foundProduct) {
-            setProduct(foundProduct);
-          } else {
-            setError('Không tìm thấy thông tin sản phẩm');
-          }
-        } else {
-          setError(responseData.message || 'Không tìm thấy thông tin sản phẩm');
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Lỗi kết nối máy chủ');
-      } finally {
-        setLoading(false);
-      }
+        const res = await productService.getAllProducts();
+        if (res.data?.content) {
+          sharedDataService.setProducts(res.data.content);
+          const found = sharedDataService.getProductByCode(productId);
+          if (found) { setProduct(found); } else { setError('Không tìm thấy thông tin sản phẩm'); }
+        } else { setError(res.message || 'Không tìm thấy thông tin sản phẩm'); }
+      } catch (err) { setError(err instanceof Error ? err.message : 'Lỗi kết nối máy chủ'); }
+      finally { setLoading(false); }
     };
     fetchDetail();
   }, [productId, product]);
 
   if (loading) {
     return (
-      <div className="car-detail-loading">
-        <div className="loading-spinner"></div>
+      <div className="cd-loading">
+        <div className="cd-spinner" />
         <p>Đang tải thông tin xe...</p>
       </div>
     );
@@ -158,230 +108,224 @@ export default function CarDetail() {
 
   if (error || !product) {
     return (
-      <div className="car-detail-error">
+      <div className="cd-error">
         <h2>{error || 'Không tìm thấy xe'}</h2>
-        <button className="btn btn-primary" onClick={() => navigate('/')}>Quay lại trang chủ</button>
+        <button className="cd-btn-primary" onClick={() => navigate('/')}>Quay lại trang chủ</button>
       </div>
     );
   }
 
-  const formatPrice = (price?: number) => {
-    if (!price) return 'Liên hệ';
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
-  };
+  const formatPrice = (price?: number) =>
+    price ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price) : 'Liên hệ';
 
   const getLowestPrice = (p: Product) => {
-    if (!p.variants || p.variants.length === 0) return null;
-    const prices = p.variants.map(v => v.price).filter(Boolean);
+    const prices = p.variants?.map(v => v.price).filter(Boolean) ?? [];
     return prices.length > 0 ? Math.min(...prices) : null;
   };
 
-  const getThumbnail = (p: Product) => {
-    if (!p.variants) return '/images/vf_model_suv.png';
-    for (const variant of p.variants) {
-      if (!variant.skus) continue;
-      for (const sku of variant.skus) {
-        const thumb = sku.images?.find(img => img.isThumbnail);
-        if (thumb) return thumb.imageUrl;
+  const getDisplayImage = () => {
+    if (viewSku?.images?.length) {
+      const thumb = viewSku.images.find(img => img.isThumbnail);
+      return thumb?.imageUrl || viewSku.images[0].imageUrl;
+    }
+    for (const v of product.variants ?? []) {
+      for (const s of v.skus ?? []) {
+        const t = s.images?.find(i => i.isThumbnail);
+        if (t) return t.imageUrl;
+        if (s.images?.[0]) return s.images[0].imageUrl;
       }
     }
-    const firstImage = p.variants[0]?.skus?.[0]?.images?.[0]?.imageUrl;
-    return firstImage || '/images/vf_model_suv.png';
+    return '/images/vf_model_suv.png';
   };
 
   const lowestPrice = getLowestPrice(product);
+  const displayImage = getDisplayImage();
+  const viewSkus = viewVariant?.skus ?? [];
 
   return (
-    <div className="car-detail-page">
-      <div className="car-detail-header">
-        <button className="back-btn" onClick={() => navigate(-1)}>
-          <ArrowLeft size={24} /> Quay lại
+    <div className="cd-page">
+      {/* Sticky top bar */}
+      <div className="cd-topbar">
+        <button className="cd-back" onClick={handleBack}>
+          <ArrowLeft size={18} /> Quay lại
         </button>
+        <span className="cd-topbar-name">{product.name}</span>
       </div>
 
-      <div className="car-detail-hero">
-        <div className="car-detail-image">
-          <img
-            src={getThumbnail(product)}
-            alt={product.name}
-          />
-        </div>
-
-        <div className="car-detail-info">
-          <span className="car-type-badge">{product.type === 'CAR' ? 'Ô TÔ ĐIỆN' : 'XE MÁY ĐIỆN'}</span>
-          <h1 className="car-title">{product.name}</h1>
-          <p className="car-desc">{product.description}</p>
-
-          <div className="car-price-block">
-            <span className="price-label">Giá từ</span>
-            <span className="price-value">{lowestPrice ? formatPrice(lowestPrice) : 'Liên hệ'}</span>
+      {/* ── Hero: image (left dark) + info (right white) ── */}
+      <section className="cd-hero">
+        {/* Left: car image + color picker */}
+        <div className="cd-image-panel">
+          <div className="cd-image-stage">
+            <img
+              key={viewSku?.sku ?? 'default'}
+              src={displayImage}
+              alt={product.name}
+              className="cd-main-img"
+            />
           </div>
 
-          <div className="car-action-buttons">
-            <button className="btn btn-primary" onClick={handleDeposit}>ĐẶT CỌC NGAY</button>
-            <button className="btn btn-outline" onClick={handleConsult}>NHẬN TƯ VẤN</button>
-            <button className="btn btn-outline" onClick={handleTestDrive}>LÁI THỬ</button>
+          {viewSkus.length > 0 && (
+            <div className="cd-colors">
+              <span className="cd-color-label">
+                {viewSku?.color?.colorName ?? 'Chọn màu'}
+              </span>
+              <div className="cd-swatch-row">
+                {viewSkus.map(sku => (
+                  <button
+                    key={sku.sku}
+                    className={`cd-swatch${viewSku?.sku === sku.sku ? ' active' : ''}`}
+                    style={{ backgroundColor: sku.color?.colorHex ?? '#ccc' }}
+                    title={sku.color?.colorName}
+                    onClick={() => setViewSku(sku)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right: product info */}
+        <div className="cd-info-panel">
+          <span className="cd-badge">
+            {product.type === 'CAR' ? 'Ô TÔ ĐIỆN' : 'XE MÁY ĐIỆN'}
+          </span>
+          <h1 className="cd-name">{product.name}</h1>
+          <p className="cd-desc">{product.description}</p>
+
+          {/* Variant tabs */}
+          {product.variants && product.variants.length > 1 && (
+            <div className="cd-variant-tabs">
+              <span className="cd-label-sm">Phiên bản</span>
+              <div className="cd-tab-row">
+                {product.variants.map(v => (
+                  <button
+                    key={v.variantCode}
+                    className={`cd-tab${viewVariant?.variantCode === v.variantCode ? ' active' : ''}`}
+                    onClick={() => handleViewVariantSelect(v)}
+                  >
+                    {v.variantName}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Inline specs chips */}
+          {viewVariant && (
+            <div className="cd-chips">
+              <span className="cd-chip"><Zap size={13} /> {viewVariant.batteryCapacity || 'N/A'}</span>
+              <span className="cd-chip">⚡ {viewVariant.rangePerCharge ? `${viewVariant.rangePerCharge} km NEDC` : 'N/A'}</span>
+            </div>
+          )}
+
+          {/* Price */}
+          <div className="cd-price-block">
+            <span className="cd-price-label">Giá từ</span>
+            <span className="cd-price">{lowestPrice ? formatPrice(lowestPrice) : 'Liên hệ'}</span>
+          </div>
+
+          {/* Actions */}
+          <div className="cd-actions">
+            <button className="cd-btn-primary" onClick={handleDeposit}>
+              ĐẶT CỌC NGAY
+            </button>
+            <button className="cd-btn-secondary" onClick={handleTestDrive}>
+              ĐĂNG KÝ LÁI THỬ
+            </button>
+            <button className="cd-btn-ghost" onClick={handleConsult}>
+              NHẬN TƯ VẤN
+            </button>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="car-specs-section">
-        <h2>Thông số kỹ thuật nổi bật</h2>
-        <div className="specs-grid">
-          {product.carSpec?.seatingCapacity && (
-            <div className="spec-item">
-              <Users size={32} />
-              <div className="spec-text">
-                <span className="spec-val">{product.carSpec.seatingCapacity}</span>
-                <span className="spec-lbl">Chỗ ngồi</span>
+      {/* ── Key specs ── */}
+      {(product.carSpec?.seatingCapacity || product.carSpec?.adasLevel || product.carSpec?.drivetrain || product.carSpec?.airbags) && (
+        <section className="cd-specs-section">
+          <h2 className="cd-section-title">Thông số nổi bật</h2>
+          <div className="cd-specs-grid">
+            {product.carSpec?.seatingCapacity && (
+              <div className="cd-spec-card">
+                <Users size={28} className="cd-spec-icon" />
+                <span className="cd-spec-val">{product.carSpec.seatingCapacity}</span>
+                <span className="cd-spec-lbl">Chỗ ngồi</span>
               </div>
-            </div>
-          )}
-          {product.carSpec?.adasLevel && (
-            <div className="spec-item">
-              <Shield size={32} />
-              <div className="spec-text">
-                <span className="spec-val">{product.carSpec.adasLevel}</span>
-                <span className="spec-lbl">Mức độ ADAS</span>
+            )}
+            {product.carSpec?.adasLevel && (
+              <div className="cd-spec-card">
+                <Shield size={28} className="cd-spec-icon" />
+                <span className="cd-spec-val">{product.carSpec.adasLevel}</span>
+                <span className="cd-spec-lbl">Mức ADAS</span>
               </div>
-            </div>
-          )}
-          {product.carSpec?.drivetrain && (
-            <div className="spec-item">
-              <Gauge size={32} />
-              <div className="spec-text">
-                <span className="spec-val">{product.carSpec.drivetrain}</span>
-                <span className="spec-lbl">Hệ dẫn động</span>
+            )}
+            {product.carSpec?.drivetrain && (
+              <div className="cd-spec-card">
+                <Gauge size={28} className="cd-spec-icon" />
+                <span className="cd-spec-val">{product.carSpec.drivetrain}</span>
+                <span className="cd-spec-lbl">Hệ dẫn động</span>
               </div>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
+            {product.carSpec?.airbags !== undefined && product.carSpec.airbags > 0 && (
+              <div className="cd-spec-card">
+                <Shield size={28} className="cd-spec-icon" />
+                <span className="cd-spec-val">{product.carSpec.airbags}</span>
+                <span className="cd-spec-lbl">Túi khí</span>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
+      {/* ── Variants comparison ── */}
       {product.variants && product.variants.length > 0 && (
-        <div className="car-variants-section">
-          <h2>Các phiên bản</h2>
-          <div className="variants-list">
+        <section className="cd-variants-section">
+          <h2 className="cd-section-title">So sánh phiên bản</h2>
+          <div className="cd-variants-grid">
             {product.variants.map(variant => (
-              <div key={variant.variantCode} className="variant-card">
-                <h3>{variant.variantName}</h3>
-                <p className="variant-price">{formatPrice(variant.price)}</p>
-                <div className="variant-details">
-                  <span>Pin: {variant.batteryCapacity || 'N/A'}</span>
-                  <span>Quãng đường: {variant.rangePerCharge ? `${variant.rangePerCharge} km` : 'N/A'}</span>
+              <div
+                key={variant.variantCode}
+                className={`cd-variant-card${viewVariant?.variantCode === variant.variantCode ? ' active' : ''}`}
+              >
+                <div className="cd-variant-header">
+                  <h3>{variant.variantName}</h3>
+                  <span className="cd-variant-price">{formatPrice(variant.price)}</span>
+                </div>
+                <div className="cd-variant-row">
+                  <span>Pin</span>
+                  <strong>{variant.batteryCapacity || 'N/A'}</strong>
+                </div>
+                <div className="cd-variant-row">
+                  <span>Quãng đường</span>
+                  <strong>{variant.rangePerCharge ? `${variant.rangePerCharge} km` : 'N/A'}</strong>
                 </div>
                 {variant.skus && variant.skus.length > 0 && (
-                  <div className="variant-colors">
-                    Màu sắc:
-                    <div className="color-dots">
+                  <div className="cd-variant-colors">
+                    <span>Màu sắc</span>
+                    <div className="cd-variant-swatches">
                       {variant.skus
-                        .map(s => s.color)
-                        .filter((v, i, a) => v && a.findIndex(t => t?.colorCode === v?.colorCode) === i)
-                        .map(c => (
-                          <span key={c?.colorCode} className="color-dot" style={{ backgroundColor: c?.colorHex || '#ccc' }} title={c?.colorName}></span>
+                        .filter((s, i, a) => s.color && a.findIndex(x => x.color?.colorCode === s.color?.colorCode) === i)
+                        .map(s => (
+                          <span
+                            key={s.color?.colorCode}
+                            className="cd-mini-swatch"
+                            style={{ backgroundColor: s.color?.colorHex ?? '#ccc' }}
+                            title={s.color?.colorName}
+                          />
                         ))}
                     </div>
                   </div>
                 )}
+                <button
+                  className="cd-variant-view-btn"
+                  onClick={() => handleViewVariantSelect(variant)}
+                >
+                  Xem phiên bản này
+                </button>
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Order (Deposit) Modal */}
-      {orderModalOpen && (
-        <div className="order-modal-overlay" onClick={() => setOrderModalOpen(false)}>
-          <div className="order-modal" onClick={e => e.stopPropagation()}>
-            <div className="order-modal-header">
-              <h2>Đặt cọc xe {product.name}</h2>
-              <button className="order-modal-close" onClick={() => setOrderModalOpen(false)}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="order-modal-body">
-              {product.variants && product.variants.length > 0 && (
-                <div className="order-field">
-                  <label>Chọn phiên bản</label>
-                  <div className="order-variant-list">
-                    {product.variants.map(variant => (
-                      <button
-                        key={variant.variantCode}
-                        className={`order-variant-btn${selectedVariant?.variantCode === variant.variantCode ? ' selected' : ''}`}
-                        onClick={() => handleVariantSelect(variant)}
-                      >
-                        <span className="order-variant-name">{variant.variantName}</span>
-                        <span className="order-variant-price">{formatPrice(variant.price)}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {selectedVariant?.skus && selectedVariant.skus.length > 0 && (
-                <div className="order-field">
-                  <label>Chọn màu sắc</label>
-                  <div className="order-sku-list">
-                    {selectedVariant.skus.map(sku => (
-                      <button
-                        key={sku.sku}
-                        className={`order-sku-btn${selectedSku?.sku === sku.sku ? ' selected' : ''}`}
-                        onClick={() => setSelectedSku(sku)}
-                        title={sku.color?.colorName}
-                      >
-                        <span
-                          className="order-color-swatch"
-                          style={{ backgroundColor: sku.color?.colorHex || '#ccc' }}
-                        />
-                        <span>{sku.color?.colorName || 'Không rõ'}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="order-field">
-                <label>Số tiền đặt cọc (VND)</label>
-                <input
-                  type="number"
-                  className="order-input"
-                  value={depositAmount}
-                  onChange={e => setDepositAmount(e.target.value)}
-                  placeholder="Nhập số tiền đặt cọc"
-                  min={1}
-                />
-                {selectedVariant?.price && (
-                  <span className="order-deposit-hint">
-                    Gợi ý: {formatPrice(Math.round(selectedVariant.price * 0.1))} (10% giá xe)
-                  </span>
-                )}
-              </div>
-
-              <div className="order-field">
-                <label>Ghi chú (tuỳ chọn)</label>
-                <textarea
-                  className="order-input"
-                  value={orderNote}
-                  onChange={e => setOrderNote(e.target.value)}
-                  placeholder="Ghi chú thêm cho đơn hàng..."
-                  rows={3}
-                />
-              </div>
-
-              {orderError && <p className="order-error">{orderError}</p>}
-            </div>
-
-            <div className="order-modal-footer">
-              <button className="btn btn-outline" onClick={() => setOrderModalOpen(false)} disabled={orderLoading}>
-                Huỷ
-              </button>
-              <button className="btn btn-primary" onClick={handleOrderSubmit} disabled={orderLoading}>
-                {orderLoading ? 'Đang xử lý...' : 'Xác nhận đặt cọc'}
-              </button>
-            </div>
-          </div>
-        </div>
+        </section>
       )}
     </div>
   );

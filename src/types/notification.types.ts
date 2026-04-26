@@ -1,4 +1,4 @@
-export type NotificationType = 'ORDER' | 'TEST_DRIVE';
+export type NotificationType = 'ORDER' | 'TEST_DRIVE' | 'MAINTENANCE';
 
 export interface NotificationDto {
   id: number;

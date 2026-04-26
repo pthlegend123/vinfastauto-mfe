@@ -230,7 +230,7 @@ export default function TestDriveDetail() {
 
   if (!isLoggedIn) {
     return (
-      <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+      <div style={{ padding: '120px 20px 40px', textAlign: 'center' }}>
         <p style={{ color: '#666' }}>Vui lòng đăng nhập để xem chi tiết lái thử</p>
       </div>
     );
@@ -238,7 +238,7 @@ export default function TestDriveDetail() {
 
   if (loading) {
     return (
-      <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+      <div style={{ padding: '120px 20px 40px', textAlign: 'center' }}>
         <div style={{ fontSize: '16px', color: '#666' }}>Đang tải thông tin...</div>
       </div>
     );
@@ -246,7 +246,7 @@ export default function TestDriveDetail() {
 
   if (error || !testDrive) {
     return (
-      <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+      <div style={{ padding: '120px 20px 40px', textAlign: 'center' }}>
         <h2 style={{ marginBottom: '20px' }}>{error || 'Không tìm thấy thông tin lái thử'}</h2>
         <button
           className="btn btn-primary"
@@ -260,7 +260,7 @@ export default function TestDriveDetail() {
   }
 
   return (
-    <div style={{ maxWidth: '700px', margin: '0 auto', padding: '40px 20px' }}>
+    <div style={{ maxWidth: '700px', margin: '0 auto', padding: '100px 20px 40px' }}>
       <button
         onClick={() => navigate('/my-test-drives')}
         style={{

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Eye, EyeOff, Loader2, Phone, ShieldCheck, UserPlus } from 'lucide-react';
 import { authService } from '../services/auth.service';
 import { useAuth } from '../context/AuthContext';
+import ForgotPasswordModal from './ForgotPasswordModal';
 import './LoginModal.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -110,6 +111,7 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
 export default function LoginModal() {
   const { loginModalOpen, closeLoginModal, login, pendingCallback } = useAuth();
   const [mode, setMode] = useState<Mode>('login');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   // Login
   const [username, setUsername] = useState('');
@@ -264,8 +266,10 @@ export default function LoginModal() {
   const stepNumber = mode === 'otp-phone' ? 1 : mode === 'otp-code' ? 2 : 3;
 
   return (
-    <div className="login-overlay" onClick={handleOverlayClick}>
-      <div className="login-modal">
+    <>
+      <ForgotPasswordModal open={showForgotPassword} onClose={() => setShowForgotPassword(false)} />
+      <div className="login-overlay" onClick={handleOverlayClick}>
+        <div className="login-modal">
         <button className="login-close" onClick={closeLoginModal} aria-label="Đóng"><X size={20} /></button>
 
         <div className="login-header">
@@ -306,6 +310,9 @@ export default function LoginModal() {
             <button type="submit" className="login-submit" disabled={loading}>
               {loading ? <><Loader2 size={18} className="spin" /> Đang đăng nhập...</> : 'Đăng nhập'}
             </button>
+            <p className="auth-switch-hint">
+              <button type="button" className="auth-switch-link" onClick={() => setShowForgotPassword(true)}>Quên mật khẩu?</button>
+            </p>
             <p className="auth-switch-hint">
               Chưa có tài khoản?{' '}
               <button type="button" className="auth-switch-link" onClick={() => switchMode('otp-phone')}>Đăng ký ngay</button>
@@ -415,5 +422,6 @@ export default function LoginModal() {
         )}
       </div>
     </div>
+    </>
   );
 }

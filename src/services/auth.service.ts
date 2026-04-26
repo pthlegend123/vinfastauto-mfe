@@ -67,8 +67,19 @@ export const authService = {
     }
   },
 
+  isTokenExpired: (): boolean => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return true;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.exp * 1000 < Date.now();
+    } catch {
+      return true;
+    }
+  },
+
   isLoggedIn: (): boolean => {
-    return !!localStorage.getItem('auth_token');
+    return !!localStorage.getItem('auth_token') && !authService.isTokenExpired();
   },
 
   // ── OTP registration flow ──────────────────────────────────────────────────
@@ -102,5 +113,34 @@ export const authService = {
       body: JSON.stringify({ phone, fullName, password }),
     });
     return response.json() as Promise<ApiResponse<CustomerInfo>>;
+  },
+
+  // ── Forgot password flow ───────────────────────────────────────────────────
+
+  sendForgotPasswordOtp: async (phone: string): Promise<ApiResponse> => {
+    const response = await fetch(`${BASE_URL}/auth/customer/forgot-password/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    return response.json() as Promise<ApiResponse>;
+  },
+
+  verifyForgotPasswordOtp: async (phone: string, otpCode: string): Promise<ApiResponse> => {
+    const response = await fetch(`${BASE_URL}/auth/customer/forgot-password/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, otpCode }),
+    });
+    return response.json() as Promise<ApiResponse>;
+  },
+
+  resetCustomerPassword: async (phone: string, newPassword: string): Promise<ApiResponse> => {
+    const response = await fetch(`${BASE_URL}/auth/customer/forgot-password/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, newPassword }),
+    });
+    return response.json() as Promise<ApiResponse>;
   },
 };

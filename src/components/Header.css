@@ -47,15 +47,23 @@
   gap: 32px;
 }
 
-.desktop-nav a {
+.desktop-nav a,
+.desktop-nav button {
   font-weight: 600;
   font-size: 14px;
   text-transform: uppercase;
   position: relative;
   transition: color 0.2s;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  font-family: inherit;
 }
 
-.desktop-nav a::after {
+.desktop-nav a::after,
+.desktop-nav button::after {
   content: '';
   position: absolute;
   bottom: -4px;
@@ -66,7 +74,8 @@
   transition: width 0.3s ease;
 }
 
-.desktop-nav a:hover::after {
+.desktop-nav a:hover::after,
+.desktop-nav button:hover::after {
   width: 100%;
 }
 

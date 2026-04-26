@@ -1,7 +1,8 @@
-import { Menu, User, Globe, LogOut, ChevronDown, Bell, ShoppingBag, Bike } from 'lucide-react';
+import { Menu, User, Globe, LogOut, ChevronDown, Bell, ShoppingBag, Bike, Wrench } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useModal } from '../context/ModalContext';
 import { notificationService } from '../services/notification.service';
 import type { NotificationDto } from '../types/notification.types';
 import './Header.css';
@@ -24,7 +25,10 @@ function formatNotifDate(iso: string): string {
 
 export default function Header({ scrolled }: HeaderProps) {
   const { isLoggedIn, user, logout, openLoginModal } = useAuth();
+  const { openTestDriveModal } = useModal();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isHomePage = location.pathname === '/';
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -98,18 +102,24 @@ export default function Header({ scrolled }: HeaderProps) {
     }
   };
 
+  const handleNavClick = (sectionId: string) => {
+    if (isHomePage) {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      navigate('/', { state: { scrollTo: sectionId } });
+    }
+  };
+
   const handleRegisterTestDrive = () => {
     if (!isLoggedIn) {
-      openLoginModal(() => {
-        navigate('/my-test-drives');
-      });
+      openLoginModal(() => openTestDriveModal());
     } else {
-      navigate('/my-test-drives');
+      openTestDriveModal();
     }
   };
 
   return (
-    <header className={`header ${scrolled ? 'scrolled' : ''}`}>
+    <header className={`header ${scrolled || !isHomePage ? 'scrolled' : ''}`}>
       <div className="header-container">
         {/* Mobile Menu Icon */}
         <button className="icon-btn mobile-menu">
@@ -124,16 +134,19 @@ export default function Header({ scrolled }: HeaderProps) {
           <span className="logo-text">VINFAST</span>
         </a>
 
-        {/* Navigation - Desktop */}
-        <nav className="desktop-nav">
-          <ul>
-            <li><a href="#about">Giới thiệu</a></li>
-            <li><a href="#cars">Ô tô</a></li>
-            <li><a href="#ebikes">Xe máy điện</a></li>
-            <li><a href="#services">Dịch vụ hậu mãi</a></li>
-            <li><a href="#charging">Pin và trạm sạc</a></li>
-          </ul>
-        </nav>
+        {/* Navigation - Desktop (home page only) */}
+        {isHomePage && (
+          <nav className="desktop-nav">
+            <ul>
+              <li><button onClick={() => handleNavClick('about')}>Giới thiệu</button></li>
+              <li><button onClick={() => handleNavClick('cars')}>Ô tô</button></li>
+              <li><button onClick={() => handleNavClick('ebikes')}>Xe máy điện</button></li>
+              <li><button onClick={() => handleNavClick('services')}>Dịch vụ hậu mãi</button></li>
+              <li><button onClick={() => navigate('/maintenance')}>Bảo dưỡng</button></li>
+              <li><button onClick={() => handleNavClick('charging')}>Pin và trạm sạc</button></li>
+            </ul>
+          </nav>
+        )}
 
         {/* Right Actions */}
         <div className="header-actions">
@@ -208,6 +221,7 @@ export default function Header({ scrolled }: HeaderProps) {
                           }}
                           onClick={() => {
                             if (n.notificationType === 'ORDER') navigate('/my-orders');
+                            else if (n.notificationType === 'MAINTENANCE') navigate('/my-maintenance');
                             else navigate('/my-test-drives');
                             setNotifOpen(false);
                           }}
@@ -216,7 +230,9 @@ export default function Header({ scrolled }: HeaderProps) {
                             <div style={{ marginTop: '2px', flexShrink: 0 }}>
                               {n.notificationType === 'ORDER'
                                 ? <ShoppingBag size={16} color="#0066cc" />
-                                : <Bike size={16} color="#0a9e50" />
+                                : n.notificationType === 'MAINTENANCE'
+                                  ? <Wrench size={16} color="#cc7700" />
+                                  : <Bike size={16} color="#0a9e50" />
                               }
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -269,6 +285,15 @@ export default function Header({ scrolled }: HeaderProps) {
                   }}
                 >
                   Lịch sử lái thử
+                </button>
+                <button
+                  className="account-dropdown-item"
+                  onClick={() => {
+                    navigate('/my-maintenance');
+                    setDropdownOpen(false);
+                  }}
+                >
+                  Bảo dưỡng xe
                 </button>
                 <button
                   className="account-dropdown-item"

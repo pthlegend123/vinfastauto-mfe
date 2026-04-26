@@ -218,7 +218,7 @@ export default function TestDriveBook() {
   return (
     <div style={{ maxWidth: '600px', margin: '0 auto', padding: '40px 20px' }}>
       <button
-        onClick={() => navigate(-1)}
+        onClick={() => { if (window.history.length > 1) { navigate(-1); } else { navigate('/'); } }}
         style={{
           display: 'flex',
           alignItems: 'center',

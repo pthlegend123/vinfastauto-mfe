@@ -4,10 +4,14 @@ import { ChevronLeft, ChevronRight, Zap } from 'lucide-react';
 import type { Product } from '../types/product.types';
 import { productService } from '../services/product.service';
 import { sharedDataService } from '../services/shared-data.service';
+import { useAuth } from '../context/AuthContext';
+import { useModal } from '../context/ModalContext';
 import './ModelsShowcase.css';
 
 export default function ModelsShowcase() {
   const navigate = useNavigate();
+  const { isLoggedIn, openLoginModal } = useAuth();
+  const { openOrderModal } = useModal();
   const [models, setModels] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -147,8 +151,19 @@ export default function ModelsShowcase() {
 
           {/* Action Buttons */}
           <div className="hero-actions">
-            <button className="btn btn-hero-primary">ĐẶT CỌC</button>
-            <button 
+            <button
+              className="btn btn-hero-primary"
+              onClick={() => {
+                if (!isLoggedIn) {
+                  openLoginModal(() => openOrderModal(product));
+                } else {
+                  openOrderModal(product);
+                }
+              }}
+            >
+              ĐẶT CỌC
+            </button>
+            <button
               className="btn btn-hero-outline"
               onClick={() => navigate(`/car-detail/${product.productCode}`, { state: { product } })}
             >
@@ -190,10 +205,10 @@ export default function ModelsShowcase() {
   }
 
   return (
-    <section className="models-showcase hero-mode">
-      {renderHeroCarousel('Ô TÔ ĐIỆN', cars, activeCarIndex, setActiveCarIndex)}
+    <section id="models-showcase" className="models-showcase hero-mode">
+      <div id="cars">{renderHeroCarousel('Ô TÔ ĐIỆN', cars, activeCarIndex, setActiveCarIndex)}</div>
       <div className="section-divider" />
-      {renderHeroCarousel('XE MÁY ĐIỆN', motorcycles, activeMotoIndex, setActiveMotoIndex)}
+      <div id="ebikes">{renderHeroCarousel('XE MÁY ĐIỆN', motorcycles, activeMotoIndex, setActiveMotoIndex)}</div>
     </section>
   );
 }

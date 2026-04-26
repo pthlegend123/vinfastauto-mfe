@@ -119,16 +119,16 @@ export default function MyOrders() {
 
   if (!isLoggedIn) {
     return (
-      <div style={{ padding: '40px 20px', textAlign: 'center' }}>
+      <div style={{ padding: '120px 20px 40px', textAlign: 'center' }}>
         <p style={{ color: '#666' }}>Vui lòng đăng nhập để xem đơn hàng</p>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '40px 20px' }}>
+    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '100px 20px 40px' }}>
       <button
-        onClick={() => navigate(-1)}
+        onClick={() => { if (window.history.length > 1) { navigate(-1); } else { navigate('/'); } }}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -234,10 +234,10 @@ export default function MyOrders() {
                       {order.orderCode}
                     </td>
                     <td style={{ padding: '12px 15px', color: '#333', fontSize: '13px' }}>
-                      {order.productName || order.skuCode}
+                      {order.productName || order.sku}
                     </td>
                     <td style={{ padding: '12px 15px', color: '#555', fontSize: '13px' }}>
-                      {order.variantName || '—'}
+                      {'—'}
                     </td>
                     <td style={{ padding: '12px 15px', color: '#555', fontSize: '13px' }}>
                       {order.colorName || '—'}

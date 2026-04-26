@@ -10,10 +10,11 @@ export type OrderStatus =
 export interface OrderResponse {
   orderCode: string;
   customerCode: string;
-  skuCode: string;
+  customerName?: string;
+  sku: string;
   productName: string;
-  variantName: string;
-  colorName: string;
+  assignedEmployeeCode?: string;
+  assignedEmployeeName?: string;
   depositAmount: number;
   totalPrice: number;
   status: OrderStatus;
@@ -21,14 +22,13 @@ export interface OrderResponse {
   handoverDate?: string;
   createdAt: string;
   updatedAt?: string;
-  assignedEmployeeCode?: string;
 }
 
 export interface CreateOrderRequest {
-  skuCode: string;
+  sku: string;
   depositAmount: number;
+  totalPrice: number;
   testDriveDate?: string;
-  handoverDate?: string;
   note?: string;
 }
 

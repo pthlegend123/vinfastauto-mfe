@@ -17,7 +17,7 @@ export default function Promotions() {
         </div>
       </div>
       
-      <div className="promo-panel reverse">
+      <div id="services" className="promo-panel reverse">
         <div className="promo-image">
           <div className="placeholder-image bg-gradient-2"></div>
         </div>

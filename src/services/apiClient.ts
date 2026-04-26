@@ -1,5 +1,17 @@
 const BASE_URL = 'http://localhost:8080/api/v1';
 
+let unauthorizedHandler: (() => void) | null = null;
+
+export const registerUnauthorizedHandler = (fn: () => void): void => {
+  unauthorizedHandler = fn;
+};
+
+const handleUnauthorized = (): void => {
+  const handler = unauthorizedHandler;
+  unauthorizedHandler = null; // prevent double-fire on concurrent 401s
+  handler?.();
+};
+
 const getAuthHeaders = (): HeadersInit => {
   const token = localStorage.getItem('auth_token');
   const headers: HeadersInit = {
@@ -17,6 +29,10 @@ export const apiClient = {
       method: 'GET',
       headers: getAuthHeaders(),
     });
+    if (response.status === 401) {
+      handleUnauthorized();
+      throw new Error('Session expired. Please log in again.');
+    }
     if (!response.ok) {
       throw new Error(`Error fetching ${url}: ${response.statusText}`);
     }
@@ -29,6 +45,10 @@ export const apiClient = {
       headers: getAuthHeaders(),
       body: body ? JSON.stringify(body) : undefined,
     });
+    if (response.status === 401) {
+      handleUnauthorized();
+      throw new Error('Session expired. Please log in again.');
+    }
     if (!response.ok) {
       throw new Error(`Error posting to ${url}: ${response.statusText}`);
     }
@@ -41,6 +61,10 @@ export const apiClient = {
       headers: getAuthHeaders(),
       body: body ? JSON.stringify(body) : undefined,
     });
+    if (response.status === 401) {
+      handleUnauthorized();
+      throw new Error('Session expired. Please log in again.');
+    }
     if (!response.ok) {
       throw new Error(`Error updating ${url}: ${response.statusText}`);
     }

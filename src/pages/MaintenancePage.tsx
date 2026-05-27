@@ -105,7 +105,7 @@ export default function MaintenancePage() {
       setSubmitting(true);
       const response = await maintenanceService.bookMaintenance(request);
 
-      if (response.success && response.data) {
+      if (response.code === 200 && response.data) {
         navigate('/my-maintenance');
       } else {
         setError(response.message || 'Không thể đặt lịch bảo dưỡng');

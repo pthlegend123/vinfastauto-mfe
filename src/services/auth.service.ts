@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:8080/api/v1';
+const BASE_URL = 'https://api.project-vinstore.online/api/v1';
 
 export interface LoginRequest {
   username: string;
@@ -104,13 +104,14 @@ export const authService = {
 
   otpRegister: async (
     phone: string,
+    username: string,
     fullName: string,
     password: string,
   ): Promise<ApiResponse<CustomerInfo>> => {
     const response = await fetch(`${BASE_URL}/otp/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, fullName, password }),
+      body: JSON.stringify({ phone, username, fullName, password }),
     });
     return response.json() as Promise<ApiResponse<CustomerInfo>>;
   },

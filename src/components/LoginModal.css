@@ -492,6 +492,18 @@
   border-color: #b7dfbb;
 }
 
+.telegram-btn {
+  display: inline-block;
+  color: #0088cc;
+  text-decoration: underline;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.telegram-btn:hover {
+  color: #005580;
+}
+
 .otp-sent-notice strong {
   font-weight: 700;
 }

@@ -119,6 +119,7 @@ export default function ForgotPasswordModal({ open, onClose }: ForgotPasswordMod
 
   // OTP code
   const [otpDigits, setOtpDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
+  const [telegramUrl, setTelegramUrl] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -179,6 +180,7 @@ export default function ForgotPasswordModal({ open, onClose }: ForgotPasswordMod
       if (res.code === 200) {
         setPhone(normalizedPhone);
         setOtpDigits(Array(OTP_LENGTH).fill(''));
+        setTelegramUrl(typeof res.data === 'string' ? res.data : (res.data as any)?.telegramUrl || '');
         switchMode('otp-code');
         startResendTimer();
       } else {
@@ -214,6 +216,7 @@ export default function ForgotPasswordModal({ open, onClose }: ForgotPasswordMod
       const res = await authService.sendForgotPasswordOtp(phone);
       if (res.code === 200) {
         setOtpDigits(Array(OTP_LENGTH).fill(''));
+        setTelegramUrl(typeof res.data === 'string' ? res.data : (res.data as any)?.telegramUrl || '');
         startResendTimer();
       } else {
         setError(res.message || 'Không thể gửi lại OTP');
@@ -296,7 +299,13 @@ export default function ForgotPasswordModal({ open, onClose }: ForgotPasswordMod
               <form className="login-form" onSubmit={handleVerifyOtp} noValidate>
                 <div className="otp-sent-notice">
                   <ShieldCheck size={18} />
-                  <span>Mã OTP đã gửi đến <strong>{phone}</strong></span>
+                  {telegramUrl ? (
+                    <a href={telegramUrl} target="_blank" rel="noreferrer" className="telegram-btn">
+                      Nhấn vào đây để nhận OTP qua Telegram
+                    </a>
+                  ) : (
+                    <span>Mã OTP đã gửi đến <strong>{phone}</strong></span>
+                  )}
                 </div>
                 <div className="login-field">
                   <label>Nhập mã OTP <span className="required">*</span></label>

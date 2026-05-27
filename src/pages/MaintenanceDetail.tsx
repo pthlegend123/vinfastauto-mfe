@@ -43,7 +43,7 @@ export default function MaintenanceDetail() {
         setError(null);
         const response = await maintenanceService.getBookingByCode(bookingCode);
 
-        if (response.success && response.data) {
+        if (response.code === 200 && response.data) {
           setBooking(response.data);
         } else {
           setError(response.message || 'Không tìm thấy thông tin lịch bảo dưỡng');
@@ -123,7 +123,7 @@ export default function MaintenanceDetail() {
         cancellationReason,
       });
 
-      if (response.success && response.data) {
+      if (response.code === 200 && response.data) {
         setBooking(response.data);
         setSuccessMessage('Hủy lịch bảo dưỡng thành công');
         setCancellationReason('');

@@ -36,7 +36,7 @@ export default function MyMaintenance() {
         setError(null);
         const response = await maintenanceService.getMyBookings();
 
-        if (response.success && response.data) {
+        if (response.code === 200 && response.data) {
           setBookings(Array.isArray(response.data) ? response.data : []);
         } else {
           setError(response.message || 'Không thể tải danh sách lịch bảo dưỡng');

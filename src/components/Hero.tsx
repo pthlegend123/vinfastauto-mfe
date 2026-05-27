@@ -21,7 +21,7 @@ export default function Hero() {
   return (
     <section id="about" className="hero">
       <div className="hero-background">
-        <img src="/images/hero_ev_background.png" alt="VinFast Hero Background" />
+        <img src="/images/hero_ev_background.jpg" alt="VinFast Hero Background" />
         <div className="hero-overlay"></div>
       </div>
 

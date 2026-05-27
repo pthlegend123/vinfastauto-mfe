@@ -121,7 +121,9 @@ export default function LoginModal() {
   // OTP flow state
   const [otpPhone, setOtpPhone] = useState('');
   const [otpDigits, setOtpDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
+  const [telegramUrl, setTelegramUrl] = useState('');
   const [fullName, setFullName] = useState('');
+  const [regUsername, setRegUsername] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [showRegPassword, setShowRegPassword] = useState(false);
 
@@ -197,6 +199,7 @@ export default function LoginModal() {
       if (res.code === 200) {
         setOtpPhone(phone);
         setOtpDigits(Array(OTP_LENGTH).fill(''));
+        setTelegramUrl(typeof res.data === 'string' ? res.data : (res.data as any)?.telegramUrl || '');
         switchMode('otp-code');
         startResendTimer();
       } else {
@@ -232,6 +235,7 @@ export default function LoginModal() {
       const res = await authService.otpSend(otpPhone);
       if (res.code === 200) {
         setOtpDigits(Array(OTP_LENGTH).fill(''));
+        setTelegramUrl(typeof res.data === 'string' ? res.data : (res.data as any)?.telegramUrl || '');
         startResendTimer();
       } else {
         setError(res.message || 'Không thể gửi lại OTP');
@@ -245,10 +249,13 @@ export default function LoginModal() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim()) { setError('Vui lòng nhập họ và tên'); return; }
+    if (!regUsername.trim()) { setError('Vui lòng nhập tên đăng nhập'); return; }
+    if (!(regUsername.length === regUsername.trim().length)) { setError('Tên đăng nhập không được chứa khoảng trắng'); return; }
+    if (!regPassword.trim()) { setError('Vui lòng nhập mật khẩu'); return; }
     if (regPassword.length < 6) { setError('Mật khẩu tối thiểu 6 ký tự'); return; }
     setLoading(true); setError('');
     try {
-      const res = await authService.otpRegister(otpPhone, fullName.trim(), regPassword);
+      const res = await authService.otpRegister(otpPhone, regUsername, fullName.trim(), regPassword);
       if (res.code === 200 || res.code === 201) {
         setRegisterSuccess(true);
       } else {
@@ -360,7 +367,13 @@ export default function LoginModal() {
                   <form className="login-form" onSubmit={handleVerifyOtp} noValidate>
                     <div className="otp-sent-notice">
                       <ShieldCheck size={18} />
-                      <span>Mã OTP đã gửi đến <strong>{otpPhone}</strong></span>
+                      {telegramUrl ? (
+                        <a href={telegramUrl} target="_blank" rel="noreferrer" className="telegram-btn">
+                          Nhấn vào đây để nhận OTP qua Telegram
+                        </a>
+                      ) : (
+                        <span>Mã OTP đã gửi đến <strong>{otpPhone}</strong></span>
+                      )}
                     </div>
                     <div className="login-field">
                       <label>Nhập mã OTP <span className="required">*</span></label>
@@ -397,6 +410,12 @@ export default function LoginModal() {
                       <label htmlFor="reg-fullname">Họ và tên <span className="required">*</span></label>
                       <input id="reg-fullname" type="text" placeholder="Nguyễn Văn A"
                         value={fullName} onChange={e => setFullName(e.target.value)}
+                        disabled={loading} autoFocus />
+                    </div>
+                    <div className="login-field">
+                      <label htmlFor="reg-username">Tên đăng nhập <span className="required">*</span></label>
+                      <input id="reg-username" type="text" placeholder="nguyenvana"
+                        value={regUsername} onChange={e => setRegUsername(e.target.value)}
                         disabled={loading} autoFocus />
                     </div>
                     <div className="login-field">

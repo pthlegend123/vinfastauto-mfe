@@ -13,6 +13,7 @@ export interface OrderResponse {
   customerName?: string;
   sku: string;
   productName: string;
+  colorName?: string;
   assignedEmployeeCode?: string;
   assignedEmployeeName?: string;
   depositAmount: number;

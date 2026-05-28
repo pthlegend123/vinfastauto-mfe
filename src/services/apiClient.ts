@@ -1,4 +1,6 @@
-const BASE_URL = 'https://api.project-vinstore.online/api/v1';
+import { enviroment } from '../config/enviroment.ts';
+
+const BASE_URL = enviroment.apiDomain;
 
 let unauthorizedHandler: (() => void) | null = null;
 

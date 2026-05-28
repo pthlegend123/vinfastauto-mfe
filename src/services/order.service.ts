@@ -22,8 +22,8 @@ export const orderService = {
     return apiClient.get<ApiResponse<OrderResponse>>(`/orders/${orderCode}`);
   },
 
-  createOrder: async (request: CreateOrderRequest): Promise<ApiResponse<OrderResponse>> => {
-    return apiClient.post<ApiResponse<OrderResponse>>('/orders/create', request);
+  createOrder: async (request: CreateOrderRequest): Promise<ApiResponse<string>> => {
+    return apiClient.post<ApiResponse<string>>('/orders/create', request);
   },
 
   cancelOrder: async (

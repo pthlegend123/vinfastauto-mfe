@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { X, CreditCard, Building2 } from 'lucide-react';
 import { orderService } from '../services/order.service';
 import { useModal } from '../context/ModalContext';
@@ -15,7 +14,6 @@ const formatPrice = (price?: number) =>
     : 'Liên hệ';
 
 export default function OrderModal() {
-  const navigate = useNavigate();
   const { orderOpen, orderProduct, closeOrderModal } = useModal();
 
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
@@ -78,9 +76,7 @@ export default function OrderModal() {
         note: orderNote || undefined,
       });
       if (res.code === 200 || res.code === 201) {
-        setShowCardModal(false);
-        closeOrderModal();
-        navigate('/my-orders');
+        window.location.href = res.data;
       } else {
         setOrderError(res.message || 'Đặt cọc thất bại. Vui lòng thử lại.');
         setShowCardModal(false);

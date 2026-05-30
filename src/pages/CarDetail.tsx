@@ -18,7 +18,9 @@ export default function CarDetail() {
   const [product, setProduct] = useState<Product | null>(location.state?.product || null);
   const [loading, setLoading] = useState(!location.state?.product);
   const [error, setError] = useState<string | null>(null);
+  const [consultMessage, setConsultMessage] = useState<string | null>(null);
   const hasFetched = useRef(false);
+  const consultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // View state — drives image + color picker display
   const [viewVariant, setViewVariant] = useState<ProductVariant | null>(null);
@@ -47,11 +49,17 @@ export default function CarDetail() {
     }
   };
 
+  const showConsultMessage = () => {
+    if (consultTimerRef.current) clearTimeout(consultTimerRef.current);
+    setConsultMessage('Cảm ơn bạn, tư vấn viên sẽ liên hệ trong thời gian sớm nhất.');
+    consultTimerRef.current = setTimeout(() => setConsultMessage(null), 4000);
+  };
+
   const handleConsult = () => {
     if (!isLoggedIn) {
-      openLoginModal(() => alert('Chúng tôi sẽ liên hệ tư vấn cho bạn.'));
+      openLoginModal(showConsultMessage);
     } else {
-      alert('Chúng tôi sẽ liên hệ tư vấn cho bạn.');
+      showConsultMessage();
     }
   };
 
@@ -97,6 +105,10 @@ export default function CarDetail() {
     fetchDetail();
   }, [productId, product]);
 
+  useEffect(() => () => {
+    if (consultTimerRef.current) clearTimeout(consultTimerRef.current);
+  }, []);
+
   if (loading) {
     return (
       <div className="cd-loading">
@@ -141,6 +153,12 @@ export default function CarDetail() {
   const lowestPrice = getLowestPrice(product);
   const displayImage = getDisplayImage();
   const viewSkus = viewVariant?.skus ?? [];
+  const selectedPrice = viewVariant?.price ?? lowestPrice ?? undefined;
+  const selectedStockLabel = viewSku
+    ? viewSku.stockQuantity > 0
+      ? `Còn ${viewSku.stockQuantity} xe`
+      : 'Hết hàng'
+    : 'Chưa chọn màu';
 
   return (
     <div className="cd-page">
@@ -221,9 +239,32 @@ export default function CarDetail() {
 
           {/* Price */}
           <div className="cd-price-block">
-            <span className="cd-price-label">Giá từ</span>
-            <span className="cd-price">{lowestPrice ? formatPrice(lowestPrice) : 'Liên hệ'}</span>
+            <span className="cd-price-label">Giá phiên bản đang chọn</span>
+            <span className="cd-price">{selectedPrice ? formatPrice(selectedPrice) : 'Liên hệ'}</span>
           </div>
+
+          <div className="cd-purchase-summary">
+            <div>
+              <span>Phiên bản</span>
+              <strong>{viewVariant?.variantName ?? 'Chưa chọn'}</strong>
+            </div>
+            <div>
+              <span>Màu sắc</span>
+              <strong>{viewSku?.color?.colorName ?? 'Chưa chọn'}</strong>
+            </div>
+            <div>
+              <span>Tình trạng</span>
+              <strong className={viewSku?.stockQuantity ? 'cd-stock-ok' : 'cd-stock-out'}>
+                {selectedStockLabel}
+              </strong>
+            </div>
+          </div>
+
+          {consultMessage && (
+            <div className="cd-inline-success" role="status">
+              {consultMessage}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="cd-actions">

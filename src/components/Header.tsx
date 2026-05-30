@@ -1,4 +1,4 @@
-import { Menu, User, Globe, LogOut, ChevronDown, Bell, ShoppingBag, Bike, Wrench } from 'lucide-react';
+import { Menu, User, Globe, LogOut, ChevronDown, Bell, ShoppingBag, Bike, Wrench, X } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +31,7 @@ export default function Header({ scrolled }: HeaderProps) {
   const isHomePage = location.pathname === '/';
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [notifOpen, setNotifOpen] = useState(false);
@@ -72,6 +73,10 @@ export default function Header({ scrolled }: HeaderProps) {
       setNotifications([]);
     }
   }, [isLoggedIn, fetchUnreadCount]);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   const handleBellClick = async () => {
     const opening = !notifOpen;
@@ -116,14 +121,34 @@ export default function Header({ scrolled }: HeaderProps) {
     } else {
       openTestDriveModal();
     }
+    setMobileMenuOpen(false);
+  };
+
+  const navigateFromMobile = (path: string) => {
+    navigate(path);
+    setMobileMenuOpen(false);
+  };
+
+  const handleMobileAccountClick = () => {
+    if (isLoggedIn) {
+      navigateFromMobile('/profile');
+    } else {
+      openLoginModal();
+      setMobileMenuOpen(false);
+    }
   };
 
   return (
     <header className={`header ${scrolled || !isHomePage ? 'scrolled' : ''}`}>
       <div className="header-container">
         {/* Mobile Menu Icon */}
-        <button className="icon-btn mobile-menu">
-          <Menu size={24} />
+        <button
+          className="icon-btn mobile-menu"
+          aria-label={mobileMenuOpen ? 'Đóng menu' : 'Mở menu'}
+          aria-expanded={mobileMenuOpen}
+          onClick={() => setMobileMenuOpen((v) => !v)}
+        >
+          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
 
         {/* Logo */}
@@ -317,6 +342,38 @@ export default function Header({ scrolled }: HeaderProps) {
           </button>
         </div>
       </div>
+      {mobileMenuOpen && (
+        <div className="mobile-drawer">
+          <div className="mobile-drawer__section">
+            <button onClick={() => navigateFromMobile('/')}>Trang chủ</button>
+            <button onClick={() => { handleNavClick('cars'); setMobileMenuOpen(false); }}>Ô tô</button>
+            <button onClick={() => { handleNavClick('ebikes'); setMobileMenuOpen(false); }}>Xe máy điện</button>
+            <button onClick={() => navigateFromMobile('/maintenance')}>Bảo dưỡng</button>
+          </div>
+          <div className="mobile-drawer__section">
+            <button onClick={handleMobileAccountClick}>
+              {isLoggedIn ? (user?.customer?.fullName || 'Tài khoản') : 'Đăng nhập'}
+            </button>
+            {isLoggedIn && (
+              <>
+                <button onClick={() => navigateFromMobile('/profile')}>Hồ sơ của tôi</button>
+                <button onClick={() => navigateFromMobile('/my-orders')}>Đơn hàng của tôi</button>
+                <button onClick={() => navigateFromMobile('/my-test-drives')}>Lịch lái thử</button>
+                <button onClick={() => navigateFromMobile('/my-maintenance')}>Lịch bảo dưỡng</button>
+                <button
+                  className="mobile-drawer__logout"
+                  onClick={() => {
+                    logout();
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  Đăng xuất
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }

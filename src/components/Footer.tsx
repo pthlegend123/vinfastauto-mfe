@@ -1,7 +1,11 @@
-import { MessageCircle, Video, Camera } from 'lucide-react';
+import { MessageCircle, Video, Camera, Phone, MapPin, Clock } from 'lucide-react';
 import './Footer.css';
 
 export default function Footer() {
+  const aboutLinks = ['Về chúng tôi', 'Cột mốc', 'Cộng đồng VinFast Toàn cầu', 'Báo cáo phát triển bền vững'];
+  const serviceLinks = ['Chính sách bảo hành', 'Bảo dưỡng sửa chữa', 'Thiết bị sạc', 'Phụ kiện ô tô'];
+  const legalLinks = ['Chính sách giải quyết khiếu nại', 'Chính sách bảo mật', 'Điều khoản sử dụng'];
+
   return (
     <footer className="footer">
       <div className="container footer-grid">
@@ -16,39 +20,36 @@ export default function Footer() {
             Công ty TNHH Kinh doanh Thương mại và Dịch vụ VinFast<br />
             Mã số thuế: 0108926276
           </p>
+          <div className="footer-support">
+            <div><Phone size={15} /> Hotline: <a href="tel:1900232389">1900 23 23 89</a></div>
+            <div><Clock size={15} /> Hỗ trợ: 8:00 - 21:00 hằng ngày</div>
+            <div><MapPin size={15} /> Showroom: Hà Nội, TP.HCM, Đà Nẵng, Cần Thơ</div>
+          </div>
           <div className="social-links">
-            <a href="#" className="social-icon"><MessageCircle size={20} /></a>
-            <a href="#" className="social-icon"><Video size={20} /></a>
-            <a href="#" className="social-icon"><Camera size={20} /></a>
+            <button type="button" className="social-icon" aria-label="Chat VinFast"><MessageCircle size={20} /></button>
+            <button type="button" className="social-icon" aria-label="Video VinFast"><Video size={20} /></button>
+            <button type="button" className="social-icon" aria-label="Ảnh VinFast"><Camera size={20} /></button>
           </div>
         </div>
 
         <div className="footer-col">
           <h4>VỀ VINFAST</h4>
           <ul>
-            <li><a href="#">Về chúng tôi</a></li>
-            <li><a href="#">Cột mốc</a></li>
-            <li><a href="#">Cộng đồng VinFast Toàn cầu</a></li>
-            <li><a href="#">Báo cáo phát triển bền vững</a></li>
+            {aboutLinks.map((label) => <li key={label}><span>{label}</span></li>)}
           </ul>
         </div>
 
         <div className="footer-col">
           <h4>DỊCH VỤ</h4>
           <ul>
-            <li><a href="#">Chính sách bảo hành</a></li>
-            <li><a href="#">Bảo dưỡng sửa chữa</a></li>
-            <li><a href="#">Thiết bị sạc</a></li>
-            <li><a href="#">Phụ kiện ô tô</a></li>
+            {serviceLinks.map((label) => <li key={label}><span>{label}</span></li>)}
           </ul>
         </div>
 
         <div className="footer-col">
           <h4>QUY ĐỊNH & PHÁP LÝ</h4>
           <ul>
-            <li><a href="#">Chính sách giải quyết khiếu nại</a></li>
-            <li><a href="#">Chính sách bảo mật</a></li>
-            <li><a href="#">Điều khoản sử dụng</a></li>
+            {legalLinks.map((label) => <li key={label}><span>{label}</span></li>)}
           </ul>
         </div>
       </div>

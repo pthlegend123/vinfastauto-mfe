@@ -28,6 +28,33 @@
   margin-bottom: 24px;
 }
 
+.footer-support {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.footer-support div {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.footer-support svg {
+  color: #7fb4ff;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.footer-support a {
+  color: #fff;
+  font-weight: 700;
+}
+
 .social-links {
   display: flex;
   gap: 16px;
@@ -40,7 +67,9 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
+  border: 0;
   background-color: rgba(255, 255, 255, 0.1);
+  color: inherit;
   transition: all 0.3s ease;
 }
 
@@ -62,13 +91,15 @@
   gap: 12px;
 }
 
-.footer-col a {
+.footer-col a,
+.footer-col span {
   font-size: 14px;
   color: #aaa;
   transition: color 0.3s;
 }
 
-.footer-col a:hover {
+.footer-col a:hover,
+.footer-col span:hover {
   color: #fff;
 }
 

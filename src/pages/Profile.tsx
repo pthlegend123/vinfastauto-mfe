@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, Clock, XCircle, AlertCircle, Pencil, ShoppingBag, Bike } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, XCircle, AlertCircle, Pencil, ShoppingBag, Bike, Trash2 } from 'lucide-react';
 import { customerService } from '../services/customer.service';
 import type { CustomerProfile, KycUploadRequest } from '../services/customer.service';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +20,14 @@ const EMPTY_KYC: KycUploadRequest = {
   drivingLicenseImageUrl: '',
   licenseClass: '',
 };
+
+type KycImageField = 'idCardFrontUrl' | 'idCardBackUrl' | 'drivingLicenseImageUrl';
+
+const KYC_IMAGE_REQUIREMENTS: Array<{ field: KycImageField; label: string }> = [
+  { field: 'idCardFrontUrl', label: 'Ảnh mặt trước CCCD' },
+  { field: 'idCardBackUrl', label: 'Ảnh mặt sau CCCD' },
+  { field: 'drivingLicenseImageUrl', label: 'Ảnh bằng lái xe' },
+];
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
@@ -42,6 +50,65 @@ const fieldGroupStyle: React.CSSProperties = {
   marginBottom: '16px',
 };
 
+function KycImagePreview({
+  label,
+  url,
+  onRemove,
+}: {
+  label: string;
+  url?: string | null;
+  onRemove?: () => void;
+}) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+
+  if (!url) return null;
+  const failed = failedUrl === url;
+
+  return (
+    <div style={{ marginTop: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <span style={{ ...labelStyle, marginBottom: 0 }}>{label}</span>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              border: '1px solid #f5c2c7',
+              background: '#fff5f5',
+              color: '#b42318',
+              borderRadius: '6px',
+              padding: '6px 8px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 600,
+            }}
+          >
+            <Trash2 size={13} />
+            Xóa ảnh
+          </button>
+        )}
+      </div>
+      {failed ? (
+        <div style={{ padding: '14px', borderRadius: '8px', border: '1px dashed #ddd', color: '#777', fontSize: '13px' }}>
+          Không tải được ảnh
+        </div>
+      ) : (
+        <a href={url} target="_blank" rel="noreferrer" title="Mở ảnh lớn">
+          <img
+            src={url}
+            alt={label}
+            onError={() => setFailedUrl(url)}
+            style={{ width: '180px', maxWidth: '100%', borderRadius: '8px', border: '1px solid #ddd', objectFit: 'cover' }}
+          />
+        </a>
+      )}
+    </div>
+  );
+}
+
 export default function Profile() {
   const navigate = useNavigate();
   const { isLoggedIn, openLoginModal } = useAuth();
@@ -52,6 +119,7 @@ export default function Profile() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [kycForm, setKycForm] = useState<KycUploadRequest>(EMPTY_KYC);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingKycField, setUploadingKycField] = useState<KycImageField | null>(null);
 
   const [editMode, setEditMode] = useState(false);
   const [editFullName, setEditFullName] = useState('');
@@ -76,16 +144,14 @@ export default function Profile() {
       const response = await customerService.getProfile();
       if (response.code === 200 && response.data) {
         setProfile(response.data);
-        if (response.data.idCardNumber) {
-          setKycForm({
-            idCardNumber: response.data.idCardNumber || '',
-            idCardFrontUrl: response.data.idCardFrontUrl || '',
-            idCardBackUrl: response.data.idCardBackUrl || '',
-            drivingLicenseNumber: response.data.drivingLicenseNumber || '',
-            drivingLicenseImageUrl: response.data.drivingLicenseImageUrl || '',
-            licenseClass: response.data.licenseClass || '',
-          });
-        }
+        setKycForm({
+          idCardNumber: response.data.idCardNumber || '',
+          idCardFrontUrl: response.data.idCardFrontUrl || '',
+          idCardBackUrl: response.data.idCardBackUrl || '',
+          drivingLicenseNumber: response.data.drivingLicenseNumber || '',
+          drivingLicenseImageUrl: response.data.drivingLicenseImageUrl || '',
+          licenseClass: response.data.licenseClass || '',
+        });
       } else {
         setError(response.message || 'Không thể tải thông tin hồ sơ');
       }
@@ -126,13 +192,24 @@ export default function Profile() {
 
   const handleKycSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const missingImages = KYC_IMAGE_REQUIREMENTS.filter(({ field }) => !kycForm[field]?.trim());
+    if (missingImages.length > 0) {
+      setError(`Vui lòng upload đủ: ${missingImages.map(({ label }) => label).join(', ')}`);
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError(null);
+      const wasPending = profile?.kycStatus === 'PENDING';
       const response = await customerService.uploadKyc(kycForm);
       if (response.code === 200 && response.data) {
         setProfile(response.data);
-        setSuccessMsg('Nộp hồ sơ KYC thành công! Chúng tôi sẽ xét duyệt trong vòng 1-2 ngày làm việc.');
+        setSuccessMsg(
+          wasPending
+            ? 'Cập nhật hồ sơ KYC thành công! Chúng tôi sẽ xét duyệt lại thông tin mới.'
+            : 'Nộp hồ sơ KYC thành công! Chúng tôi sẽ xét duyệt trong vòng 1-2 ngày làm việc.',
+        );
         setTimeout(() => setSuccessMsg(null), 5000);
       } else {
         setError(response.message || 'Không thể nộp hồ sơ KYC');
@@ -143,6 +220,64 @@ export default function Profile() {
       setSubmitting(false);
     }
   };
+
+  const handleKycImageChange = async (field: KycImageField, file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Vui lòng chọn file ảnh hợp lệ');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Ảnh KYC tối đa 10MB');
+      return;
+    }
+    try {
+      setError(null);
+      setUploadingKycField(field);
+      const response = await customerService.uploadKycImage(file);
+      if (response.code === 200 && response.data?.imageUrl) {
+        setKycForm((prev) => ({ ...prev, [field]: response.data.imageUrl }));
+      } else {
+        setError(response.message || 'Không thể upload ảnh KYC');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload ảnh KYC thất bại');
+    } finally {
+      setUploadingKycField(null);
+    }
+  };
+
+  const handleKycImageRemove = (field: KycImageField) => {
+    setKycForm((prev) => ({ ...prev, [field]: '' }));
+    setError(null);
+  };
+
+  const renderKycImageUpload = (
+    field: KycImageField,
+    label: string,
+  ) => (
+    <div style={fieldGroupStyle}>
+      <label style={labelStyle}>{label} *</label>
+      <input
+        key={`${field}-${kycForm[field] ? 'uploaded' : 'empty'}`}
+        type="file"
+        accept="image/*"
+        required={!kycForm[field]}
+        onChange={(e) => handleKycImageChange(field, e.target.files?.[0])}
+        style={inputStyle}
+      />
+      {uploadingKycField === field && (
+        <p style={{ margin: '6px 0 0', color: '#666', fontSize: '13px' }}>Đang upload...</p>
+      )}
+      {kycForm[field] && (
+        <KycImagePreview
+          label="Ảnh đã upload"
+          url={String(kycForm[field])}
+          onRemove={() => handleKycImageRemove(field)}
+        />
+      )}
+    </div>
+  );
 
   if (!isLoggedIn) {
     return (
@@ -170,7 +305,13 @@ export default function Profile() {
 
   const kycConfig = KYC_STATUS_CONFIG[profile.kycStatus] || KYC_STATUS_CONFIG['UNVERIFIED'];
   const KycIcon = kycConfig.Icon;
-  const showForm = profile.kycStatus === 'UNVERIFIED' || profile.kycStatus === 'REJECTED';
+  const showForm = profile.kycStatus !== 'VERIFIED';
+  const kycSubmitText =
+    profile.kycStatus === 'PENDING'
+      ? 'Cập nhật hồ sơ KYC'
+      : profile.kycStatus === 'REJECTED'
+        ? 'Nộp lại hồ sơ KYC'
+        : 'Nộp hồ sơ KYC';
 
   return (
     <div style={{ maxWidth: '700px', margin: '0 auto', padding: '40px 20px' }}>
@@ -321,14 +462,21 @@ export default function Profile() {
           </span>
         </div>
 
+        <div style={{ padding: '14px 16px', backgroundColor: '#f0f7ff', color: '#27577f', border: '1px solid #cce0ff', borderRadius: '8px', marginBottom: '20px', fontSize: '14px', lineHeight: 1.55 }}>
+          <strong style={{ display: 'block', color: '#16466f', marginBottom: '4px' }}>Vì sao cần KYC?</strong>
+          KYC dùng để xác minh danh tính, CCCD và bằng lái xe trước khi lái thử hoặc xử lý hồ sơ mua xe. Thông tin chỉ phục vụ việc xác minh và xử lý đơn hàng của bạn.
+        </div>
+
         {profile.kycStatus === 'REJECTED' && profile.kycRejectionReason && (
-          <div style={{ padding: '12px', backgroundColor: '#f8d7da', color: '#842029', borderRadius: '8px', marginBottom: '20px', fontSize: '14px' }}>
-            <strong>Lý do từ chối:</strong> {profile.kycRejectionReason}
+          <div style={{ padding: '14px 16px', backgroundColor: '#f8d7da', color: '#842029', borderRadius: '8px', marginBottom: '20px', fontSize: '14px', lineHeight: 1.5 }}>
+            <strong style={{ display: 'block', marginBottom: '4px' }}>Lý do từ chối:</strong>
+            {profile.kycRejectionReason}
+            <p style={{ margin: '8px 0 0' }}>Vui lòng kiểm tra lại ảnh CCCD/bằng lái xe và bấm "Nộp lại hồ sơ KYC" ở cuối form.</p>
           </div>
         )}
 
         {profile.kycStatus === 'PENDING' && (
-          <div style={{ padding: '16px', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '8px', fontSize: '14px' }}>
+          <div style={{ padding: '16px', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '8px', marginBottom: '20px', fontSize: '14px' }}>
             Hồ sơ của bạn đang được xét duyệt. Chúng tôi sẽ thông báo kết quả trong vòng 1–2 ngày làm việc.
           </div>
         )}
@@ -340,10 +488,7 @@ export default function Profile() {
             </div>
             {[
               { label: 'Số CCCD/CMND', value: profile.idCardNumber },
-              { label: 'Ảnh mặt trước CCCD', value: profile.idCardFrontUrl },
-              { label: 'Ảnh mặt sau CCCD', value: profile.idCardBackUrl },
               { label: 'Số bằng lái xe', value: profile.drivingLicenseNumber },
-              { label: 'Ảnh bằng lái xe', value: profile.drivingLicenseImageUrl },
               { label: 'Hạng bằng lái', value: profile.licenseClass },
             ].map(({ label, value }) => value && (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f5f5f5', fontSize: '14px' }}>
@@ -351,13 +496,20 @@ export default function Profile() {
                 <span style={{ color: '#333', maxWidth: '60%', wordBreak: 'break-all', textAlign: 'right' }}>{value}</span>
               </div>
             ))}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginTop: '16px' }}>
+              <KycImagePreview label="Ảnh mặt trước CCCD" url={profile.idCardFrontUrl} />
+              <KycImagePreview label="Ảnh mặt sau CCCD" url={profile.idCardBackUrl} />
+              <KycImagePreview label="Ảnh bằng lái xe" url={profile.drivingLicenseImageUrl} />
+            </div>
           </div>
         )}
 
         {showForm && (
           <form onSubmit={handleKycSubmit}>
             <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
-              Vui lòng cung cấp thông tin giấy tờ để hoàn tất xác minh danh tính.
+              {profile.kycStatus === 'PENDING'
+                ? 'Nếu đã upload nhầm ảnh giấy tờ, bạn có thể xóa ảnh hiện tại, upload lại và cập nhật hồ sơ trước khi được duyệt.'
+                : 'Vui lòng cung cấp thông tin giấy tờ để hoàn tất xác minh danh tính.'}
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
               <div style={fieldGroupStyle}>
@@ -383,28 +535,10 @@ export default function Profile() {
                 />
               </div>
             </div>
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>Link ảnh mặt trước CCCD *</label>
-              <input
-                type="text"
-                required
-                value={kycForm.idCardFrontUrl}
-                onChange={e => setKycForm({ ...kycForm, idCardFrontUrl: e.target.value })}
-                style={inputStyle}
-                placeholder="https://..."
-              />
-            </div>
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>Link ảnh mặt sau CCCD *</label>
-              <input
-                type="text"
-                required
-                value={kycForm.idCardBackUrl}
-                onChange={e => setKycForm({ ...kycForm, idCardBackUrl: e.target.value })}
-                style={inputStyle}
-                placeholder="https://..."
-              />
-            </div>
+            {renderKycImageUpload('idCardFrontUrl', 'Ảnh mặt trước CCCD')}
+            {renderKycImageUpload('idCardBackUrl', 'Ảnh mặt sau CCCD')}
+            {renderKycImageUpload('drivingLicenseImageUrl', 'Ảnh bằng lái xe')}
+
             <div style={fieldGroupStyle}>
               <label style={labelStyle}>Số bằng lái xe *</label>
               <input
@@ -414,17 +548,6 @@ export default function Profile() {
                 onChange={e => setKycForm({ ...kycForm, drivingLicenseNumber: e.target.value })}
                 style={inputStyle}
                 placeholder="Nhập số bằng lái"
-              />
-            </div>
-            <div style={fieldGroupStyle}>
-              <label style={labelStyle}>Link ảnh bằng lái xe *</label>
-              <input
-                type="text"
-                required
-                value={kycForm.drivingLicenseImageUrl}
-                onChange={e => setKycForm({ ...kycForm, drivingLicenseImageUrl: e.target.value })}
-                style={inputStyle}
-                placeholder="https://..."
               />
             </div>
             <button
@@ -442,7 +565,7 @@ export default function Profile() {
                 fontWeight: '600',
               }}
             >
-              {submitting ? 'Đang nộp...' : 'Nộp hồ sơ KYC'}
+              {submitting ? 'Đang lưu...' : kycSubmitText}
             </button>
           </form>
         )}

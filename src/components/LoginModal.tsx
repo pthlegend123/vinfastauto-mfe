@@ -12,6 +12,15 @@ type Mode = 'login' | 'otp-phone' | 'otp-code' | 'otp-complete';
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
 
+const getTelegramUrl = (data: unknown) => {
+  if (typeof data === 'string') return data;
+  if (data && typeof data === 'object' && 'telegramUrl' in data) {
+    const { telegramUrl } = data as { telegramUrl?: unknown };
+    return typeof telegramUrl === 'string' ? telegramUrl : '';
+  }
+  return '';
+};
+
 // ─── OTP digit input component ───────────────────────────────────────────────
 
 interface OtpInputProps {
@@ -199,7 +208,7 @@ export default function LoginModal() {
       if (res.code === 200) {
         setOtpPhone(phone);
         setOtpDigits(Array(OTP_LENGTH).fill(''));
-        setTelegramUrl(typeof res.data === 'string' ? res.data : (res.data as any)?.telegramUrl || '');
+        setTelegramUrl(getTelegramUrl(res.data));
         switchMode('otp-code');
         startResendTimer();
       } else {
@@ -235,7 +244,7 @@ export default function LoginModal() {
       const res = await authService.otpSend(otpPhone);
       if (res.code === 200) {
         setOtpDigits(Array(OTP_LENGTH).fill(''));
-        setTelegramUrl(typeof res.data === 'string' ? res.data : (res.data as any)?.telegramUrl || '');
+        setTelegramUrl(getTelegramUrl(res.data));
         startResendTimer();
       } else {
         setError(res.message || 'Không thể gửi lại OTP');

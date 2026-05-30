@@ -1,0 +1,217 @@
+.app-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.app-table-wrap::-webkit-scrollbar,
+.app-table__scroll-cell::-webkit-scrollbar {
+  height: 10px;
+}
+
+.app-table-wrap::-webkit-scrollbar-thumb,
+.app-table__scroll-cell::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 999px;
+  border: 2px solid #f8fafc;
+}
+
+.app-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate !important;
+  border-spacing: 0;
+  table-layout: auto;
+  background: #ffffff;
+}
+
+.app-table th,
+.app-table td {
+  padding: 11px 14px !important;
+  border-bottom: 1px solid #e5e7eb;
+  color: #334155;
+  font-size: 13px;
+  vertical-align: middle;
+  min-width: 118px;
+}
+
+.app-table th {
+  background: #f8fafc;
+  color: #334155 !important;
+  font-size: 12px;
+  font-weight: 700 !important;
+  letter-spacing: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.app-table tbody tr:nth-child(even) td {
+  background: #fbfcfe;
+}
+
+.app-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.app-table td:not(.app-table__actions) {
+  max-width: 260px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+  scrollbar-width: thin;
+}
+
+.app-table td:not(.app-table__actions) > div,
+.app-table td:not(.app-table__actions) > span {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-overflow: clip;
+  scrollbar-width: thin;
+}
+
+.app-table .table-color-value,
+.table-color-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: visible !important;
+  white-space: nowrap;
+}
+
+.app-table .table-color-dot,
+.table-color-dot {
+  display: inline-block;
+  width: 14px;
+  min-width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border: 1px solid #d0d0d0;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.app-table__scroll-cell {
+  max-width: 260px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: thin;
+}
+
+.app-table--sticky-actions th:last-child,
+.app-table--sticky-actions .app-table__actions {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  width: 122px;
+  min-width: 122px;
+  max-width: 122px;
+  text-align: right !important;
+  white-space: normal;
+  background: #ffffff;
+  box-shadow: -18px 0 24px rgba(15, 23, 42, 0.13);
+}
+
+.app-table--sticky-actions th:last-child {
+  z-index: 3;
+  padding: 11px 8px !important;
+  background: #f8fafc;
+}
+
+.app-table--sticky-actions .app-table__actions {
+  padding: 8px 6px !important;
+}
+
+.app-table--sticky-actions tbody tr:nth-child(even) .app-table__actions {
+  background: #fbfcfe;
+}
+
+.app-table--sticky-actions tbody tr:hover .app-table__actions {
+  background: #f8fafc;
+}
+
+.app-table__actions-row {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  justify-content: center;
+  align-items: center;
+  gap: 5px !important;
+  max-width: 100%;
+}
+
+.app-table__actions-row button,
+.app-table__actions button {
+  position: relative;
+  display: inline-grid !important;
+  place-items: center !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  max-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  border-radius: 6px !important;
+  font-size: 0 !important;
+  gap: 0 !important;
+  line-height: 0 !important;
+  white-space: nowrap !important;
+  overflow: visible;
+}
+
+.app-table__actions svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: auto;
+}
+
+.app-table__actions button[data-tooltip]::after {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 7px);
+  z-index: 20;
+  content: attr(data-tooltip);
+  width: max-content;
+  max-width: 180px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.app-table__actions button[data-tooltip]:hover::after,
+.app-table__actions button[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .app-table {
+    min-width: 720px;
+  }
+
+  .app-table--sticky-actions th:last-child,
+  .app-table--sticky-actions .app-table__actions {
+    width: 112px;
+    min-width: 112px;
+    max-width: 112px;
+  }
+
+  .app-table__actions-row {
+    gap: 4px !important;
+  }
+}

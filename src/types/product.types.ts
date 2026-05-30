@@ -28,7 +28,6 @@ export interface ProductVariant {
   batteryCapacity: string;
   rangePerCharge: number;
   price: number;
-  batterySubscriptionPrice?: number;
   skus: ProductSku[];
 }
 

@@ -1,4 +1,5 @@
 import { enviroment } from '../config/enviroment.ts';
+import { toCustomerErrorMessage } from '../utils/customerMessages';
 
 const BASE_URL = enviroment.apiDomain;
 
@@ -25,6 +26,18 @@ const getAuthHeaders = (): HeadersInit => {
   return headers;
 };
 
+const getApiErrorMessage = async (response: Response, fallback: string): Promise<string> => {
+  try {
+    const payload = (await response.clone().json()) as { message?: unknown };
+    const message = typeof payload.message === 'string' && payload.message.trim()
+      ? payload.message
+      : fallback;
+    return toCustomerErrorMessage(message, toCustomerErrorMessage(fallback));
+  } catch {
+    return toCustomerErrorMessage(fallback);
+  }
+};
+
 export const apiClient = {
   get: async <T>(url: string): Promise<T> => {
     const response = await fetch(`${BASE_URL}${url}`, {
@@ -36,7 +49,7 @@ export const apiClient = {
       throw new Error('Session expired. Please log in again.');
     }
     if (!response.ok) {
-      throw new Error(`Error fetching ${url}: ${response.statusText}`);
+      throw new Error(await getApiErrorMessage(response, `Error fetching ${url}: ${response.statusText}`));
     }
     return response.json() as Promise<T>;
   },
@@ -52,7 +65,7 @@ export const apiClient = {
       throw new Error('Session expired. Please log in again.');
     }
     if (!response.ok) {
-      throw new Error(`Error posting to ${url}: ${response.statusText}`);
+      throw new Error(await getApiErrorMessage(response, `Error posting to ${url}: ${response.statusText}`));
     }
     return response.json() as Promise<T>;
   },
@@ -68,7 +81,7 @@ export const apiClient = {
       throw new Error('Session expired. Please log in again.');
     }
     if (!response.ok) {
-      throw new Error(`Error updating ${url}: ${response.statusText}`);
+      throw new Error(await getApiErrorMessage(response, `Error updating ${url}: ${response.statusText}`));
     }
     return response.json() as Promise<T>;
   },

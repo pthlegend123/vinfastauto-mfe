@@ -1,20 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, FileText, X } from 'lucide-react';
+import { ArrowLeft, CalendarClock, CreditCard, FileText, X } from 'lucide-react';
 import { orderService } from '../services/order.service';
 import { invoiceService } from '../services/invoice.service';
 import { useAuth } from '../context/AuthContext';
 import type { OrderResponse, OrderStatus } from '../types/order.types';
 import type { InvoiceResponse, InvoiceStatus } from '../types/invoice.types';
+import { formatCurrency, formatDate } from '../utils/format';
+import { toCustomerErrorMessage } from '../utils/customerMessages';
+import { ORDER_NEXT_ACTIONS, ORDER_STATUS_DESCRIPTIONS, getOrderRemainingAmount } from '../utils/orderDisplay';
 import './OrderDetail.css';
+import '../styles/shared-tables.css';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING_DEPOSIT: 'Chờ đặt cọc',
   DEPOSIT_PAID: 'Đã đặt cọc',
-  SALES_CONFIRMED: 'Sales đã xác nhận',
-  DELIVERED: 'Đã giao xe',
+  SALES_CONFIRMED: 'Nhân viên đã xác nhận',
+  DELIVERED: 'Đã bàn giao xe',
   CANCELLED: 'Đã hủy',
   REFUND_PENDING: 'Chờ hoàn tiền',
   REFUNDED: 'Đã hoàn tiền',
@@ -48,11 +52,17 @@ const MAIN_STEPS: OrderStatus[] = [
 const MAIN_STEP_LABELS: Record<string, string> = {
   PENDING_DEPOSIT: 'Chờ đặt cọc',
   DEPOSIT_PAID: 'Đã đặt cọc',
-  SALES_CONFIRMED: 'Sales xác nhận',
-  DELIVERED: 'Đã giao xe',
+  SALES_CONFIRMED: 'Nhân viên xác nhận',
+  DELIVERED: 'Bàn giao xe',
 };
 
 const CANCELLED_STATES = new Set<OrderStatus>(['CANCELLED', 'REFUND_PENDING', 'REFUNDED']);
+
+const HANDOVER_RESCHEDULE_LABELS = {
+  PENDING: 'Đang chờ nhân viên xác nhận',
+  APPROVED: 'Đã được xác nhận',
+  REJECTED: 'Chưa được duyệt',
+} as const;
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -100,6 +110,12 @@ function StatusTimeline({ order }: { order: OrderResponse }) {
         })}
       </div>
 
+      <div className="od-status-note">
+        <strong>{ORDER_STATUS_LABELS[order.status]}</strong>
+        <p>{ORDER_STATUS_DESCRIPTIONS[order.status]}</p>
+        {ORDER_NEXT_ACTIONS[order.status] && <span>{ORDER_NEXT_ACTIONS[order.status]}</span>}
+      </div>
+
       {isCancelled && (
         <div className="od-timeline-error">
           <X size={14} />
@@ -110,19 +126,23 @@ function StatusTimeline({ order }: { order: OrderResponse }) {
   );
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-const formatDate = (dateStr?: string) =>
-  dateStr
-    ? new Intl.DateTimeFormat('vi-VN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      }).format(new Date(dateStr))
-    : '—';
-
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+function ColorDisplay({ name, hex }: { name?: string; hex?: string }) {
+  if (!name) return <>—</>;
+  return (
+    <span className="table-color-value" style={{ justifyContent: 'flex-end' }}>
+      {hex && (
+        <span
+          className="table-color-dot"
+          aria-hidden="true"
+          style={{
+            backgroundColor: hex,
+          }}
+        />
+      )}
+      {name}
+    </span>
+  );
+}
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
@@ -139,6 +159,11 @@ export default function OrderDetail() {
   const [showCancelForm, setShowCancelForm] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [showHandoverForm, setShowHandoverForm] = useState(false);
+  const [requestedHandoverDate, setRequestedHandoverDate] = useState('');
+  const [handoverReason, setHandoverReason] = useState('');
+  const [handoverSubmitting, setHandoverSubmitting] = useState(false);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -159,7 +184,7 @@ export default function OrderDetail() {
         return;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lỗi kết nối máy chủ');
+      setError(toCustomerErrorMessage(err instanceof Error ? err.message : null, 'Không thể tải đơn hàng. Vui lòng thử lại.'));
       setLoading(false);
       return;
     } finally {
@@ -193,12 +218,65 @@ export default function OrderDetail() {
         setSuccessMsg('Hủy đơn hàng thành công');
         setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setError(response.message || 'Không thể hủy đơn hàng');
+        setError(toCustomerErrorMessage(response.message, 'Không thể hủy đơn hàng.'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lỗi kết nối máy chủ');
+      setError(toCustomerErrorMessage(err instanceof Error ? err.message : null, 'Không thể hủy đơn hàng.'));
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleDepositPayment = async () => {
+    if (!orderCode) return;
+    try {
+      setPaymentLoading(true);
+      setError(null);
+      const response = await orderService.createDepositPaymentUrl(orderCode);
+      if ((response.code === 200 || response.code === 201) && response.data) {
+        window.location.href = response.data;
+      } else {
+        setError(toCustomerErrorMessage(response.message, 'Không thể tạo link thanh toán đặt cọc.'));
+      }
+    } catch (err) {
+      setError(toCustomerErrorMessage(err instanceof Error ? err.message : null, 'Không thể mở lại VNPay.'));
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handleHandoverReschedule = async () => {
+    if (!orderCode || !requestedHandoverDate) {
+      setError('Vui lòng chọn ngày nhận xe mới.');
+      return;
+    }
+    const selectedDate = new Date(requestedHandoverDate);
+    if (Number.isNaN(selectedDate.getTime()) || selectedDate.getTime() <= Date.now()) {
+      setError('Ngày nhận xe mới phải lớn hơn thời điểm hiện tại.');
+      return;
+    }
+
+    try {
+      setHandoverSubmitting(true);
+      setError(null);
+      const response = await orderService.requestHandoverReschedule(orderCode, {
+        requestedHandoverDate,
+        reason: handoverReason.trim() || undefined,
+      });
+      if (response.code === 200 && response.data) {
+        setOrder(response.data);
+        setShowHandoverForm(false);
+        setRequestedHandoverDate('');
+        setHandoverReason('');
+        setSuccessMsg('Đã gửi yêu cầu dời lịch nhận xe. Nhân viên sẽ xác nhận lại lịch mới.');
+        setTimeout(() => setSuccessMsg(null), 3000);
+      } else {
+        setError(toCustomerErrorMessage(response.message, 'Không thể gửi yêu cầu dời lịch nhận xe.'));
+      }
+    } catch (err) {
+      setError(toCustomerErrorMessage(err instanceof Error ? err.message : null, 'Không thể gửi yêu cầu dời lịch nhận xe.'));
+    } finally {
+      setHandoverSubmitting(false);
     }
   };
 
@@ -232,6 +310,10 @@ export default function OrderDetail() {
   }
 
   const badgeMod = ORDER_BADGE_MOD[order.status];
+  const remainingAmount = getOrderRemainingAmount(order);
+  const canRequestHandoverReschedule = order.status === 'SALES_CONFIRMED'
+    && Boolean(order.handoverDate)
+    && order.handoverRescheduleStatus !== 'PENDING';
 
   return (
     <div className="od-container">
@@ -268,12 +350,43 @@ export default function OrderDetail() {
             <div className="od-summary__item__value">{formatCurrency(order.depositAmount)}</div>
           </div>
           <div className="od-summary__item">
-            <div className="od-summary__item__label">Giá trị xe</div>
+            <div className="od-summary__item__label">Giá xe</div>
             <div className="od-summary__item__value">
               {order.totalPrice > 0 ? formatCurrency(order.totalPrice) : '—'}
             </div>
           </div>
+          <div className="od-summary__item">
+            <div className="od-summary__item__label">Còn lại sau đặt cọc</div>
+            <div className="od-summary__item__value">
+              {remainingAmount !== null ? formatCurrency(remainingAmount) : '—'}
+            </div>
+          </div>
+          <div className="od-summary__item">
+            <div className="od-summary__item__label">Phương thức đặt cọc</div>
+            <div className="od-summary__item__value od-summary__item__value--text">VNPay</div>
+          </div>
         </div>
+        <p className="od-finance-note">
+          Khoản trên là tiền đặt cọc để giữ xe. Phần còn lại sẽ được nhân viên hướng dẫn thanh toán sau khi đơn được xác nhận.
+        </p>
+        {order.status === 'PENDING_DEPOSIT' && (
+          <div className="od-payment-cta">
+            <div>
+              <p className="od-payment-cta__title">Đơn hàng chưa thanh toán đặt cọc</p>
+              <p className="od-payment-cta__hint">
+                Mỗi lần bấm, hệ thống sẽ tạo link VNPay mới (hiệu lực 15 phút) để hoàn tất khoản đặt cọc.
+              </p>
+            </div>
+            <button
+              className="od-btn od-btn--primary"
+              onClick={handleDepositPayment}
+              disabled={paymentLoading}
+            >
+              <CreditCard size={16} />
+              {paymentLoading ? 'Đang mở VNPay...' : 'Thanh toán đặt cọc'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Order Info */}
@@ -283,6 +396,18 @@ export default function OrderDetail() {
         <div className="od-field">
           <span className="od-field__label">Sản phẩm</span>
           <span className="od-field__value">{order.productName || order.sku}</span>
+        </div>
+        <div className="od-field">
+          <span className="od-field__label">Phiên bản</span>
+          <span className="od-field__value">{order.variantName || '—'}</span>
+        </div>
+        <div className="od-field">
+          <span className="od-field__label">Màu sắc</span>
+          <span className="od-field__value"><ColorDisplay name={order.colorName} hex={order.colorHex} /></span>
+        </div>
+        <div className="od-field">
+          <span className="od-field__label">SKU</span>
+          <span className="od-field__value">{order.sku || '—'}</span>
         </div>
         <div className="od-field">
           <span className="od-field__label">Ngày tạo đơn</span>
@@ -306,7 +431,99 @@ export default function OrderDetail() {
             <span className="od-field__value">{formatDate(order.handoverDate)}</span>
           </div>
         )}
+        {order.handoverRescheduleStatus && (
+          <div className="od-field">
+            <span className="od-field__label">Yêu cầu dời lịch</span>
+            <span className="od-field__value">
+              {HANDOVER_RESCHEDULE_LABELS[order.handoverRescheduleStatus]}
+            </span>
+          </div>
+        )}
+        {order.requestedHandoverDate && (
+          <div className="od-field">
+            <span className="od-field__label">Ngày đề xuất</span>
+            <span className="od-field__value">{formatDate(order.requestedHandoverDate)}</span>
+          </div>
+        )}
+        {order.handoverRescheduleNote && (
+          <div className="od-field">
+            <span className="od-field__label">Phản hồi</span>
+            <span className="od-field__value">{order.handoverRescheduleNote}</span>
+          </div>
+        )}
       </div>
+
+      {order.status === 'SALES_CONFIRMED' && order.handoverDate && (
+        <div className="od-card">
+          <p className="od-card__title">Lịch nhận xe</p>
+          {order.handoverRescheduleStatus === 'PENDING' ? (
+            <div className="od-status-note">
+              <strong>Đang chờ xác nhận lịch mới</strong>
+              <p>
+                Bạn đã đề xuất nhận xe vào {formatDate(order.requestedHandoverDate)}.
+                Nhân viên phụ trách sẽ xác nhận lại lịch này.
+              </p>
+            </div>
+          ) : (
+            <>
+              {!showHandoverForm ? (
+                <div className="od-reschedule-row">
+                  <div>
+                    <p className="od-reschedule-title">Muốn đổi ngày nhận xe?</p>
+                    <p className="od-reschedule-hint">Gửi ngày mong muốn, nhân viên phụ trách sẽ xác nhận lịch mới.</p>
+                  </div>
+                  <button
+                    className="od-btn od-btn--outline"
+                    disabled={!canRequestHandoverReschedule}
+                    onClick={() => setShowHandoverForm(true)}
+                  >
+                    <CalendarClock size={16} />
+                    Dời lịch nhận xe
+                  </button>
+                </div>
+              ) : (
+                <div className="od-reschedule-form">
+                  <label htmlFor="handoverDate">Ngày nhận xe mới</label>
+                  <input
+                    id="handoverDate"
+                    type="datetime-local"
+                    value={requestedHandoverDate}
+                    onChange={(e) => setRequestedHandoverDate(e.target.value)}
+                  />
+                  <label htmlFor="handoverReason">Lý do</label>
+                  <textarea
+                    id="handoverReason"
+                    rows={3}
+                    value={handoverReason}
+                    onChange={(e) => setHandoverReason(e.target.value)}
+                    placeholder="Ví dụ: Tôi bận lịch cá nhân và muốn nhận xe vào ngày khác"
+                  />
+                  <div className="od-actions">
+                    <button
+                      className="od-btn od-btn--outline"
+                      disabled={handoverSubmitting}
+                      onClick={() => {
+                        setShowHandoverForm(false);
+                        setRequestedHandoverDate('');
+                        setHandoverReason('');
+                      }}
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      className="od-btn od-btn--primary"
+                      disabled={!requestedHandoverDate || handoverSubmitting}
+                      onClick={handleHandoverReschedule}
+                    >
+                      {handoverSubmitting ? 'Đang gửi...' : 'Gửi yêu cầu'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Assigned Employee */}
       {order.assignedEmployeeName && (
@@ -337,8 +554,8 @@ export default function OrderDetail() {
             <p>Chưa có hóa đơn nào</p>
           </div>
         ) : (
-          <div className="od-table-wrap">
-            <table className="od-table">
+          <div className="od-table-wrap app-table-wrap">
+            <table className="od-table app-table">
               <thead>
                 <tr>
                   <th>Mã hóa đơn</th>
@@ -368,6 +585,18 @@ export default function OrderDetail() {
             </table>
           </div>
         )}
+      </div>
+
+      <div className="od-support-card">
+        <div>
+          <p className="od-support-card__title">Cần hỗ trợ về đơn hàng?</p>
+          <p className="od-support-card__text">
+            Hotline 1900 23 23 89 hoạt động 8:00 - 21:00. Khi liên hệ, vui lòng cung cấp mã đơn {order.orderCode}.
+          </p>
+        </div>
+        <a className="od-btn od-btn--outline" href="tel:1900232389">
+          Gọi hỗ trợ
+        </a>
       </div>
 
       {/* Cancel Section */}

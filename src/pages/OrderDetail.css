@@ -222,10 +222,40 @@
   padding: 8px 14px;
 }
 
+.od-status-note {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #f7fbff;
+}
+
+.od-status-note strong {
+  display: block;
+  color: #0f3b70;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+.od-status-note p {
+  color: #365f87;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.od-status-note span {
+  display: block;
+  color: #0a7f3f;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
 /* ===== Financial Summary ===== */
 .od-summary {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 0;
 }
@@ -251,8 +281,93 @@
   font-weight: 700;
   color: #222;
 }
+.od-summary__item__value--text {
+  font-size: 16px;
+  color: #1e40af;
+}
 .od-summary__item--highlight .od-summary__item__value {
   color: #0066cc;
+}
+
+.od-finance-note {
+  margin: 14px 0 0;
+  color: #52657a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.od-payment-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #b7e4c7;
+  border-radius: 10px;
+  background: #f0fff4;
+}
+.od-payment-cta__title {
+  margin: 0 0 4px;
+  color: #0f5132;
+  font-size: 14px;
+  font-weight: 700;
+}
+.od-payment-cta__hint {
+  margin: 0;
+  color: #52735e;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.od-reschedule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.od-reschedule-title {
+  margin: 0 0 4px;
+  color: #1e293b;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.od-reschedule-hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.od-reschedule-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.od-reschedule-form label {
+  color: #333;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.od-reschedule-form input,
+.od-reschedule-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+.od-reschedule-form input:focus,
+.od-reschedule-form textarea:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
 }
 
 /* ===== Invoice table ===== */
@@ -301,6 +416,32 @@
 .od-empty-state svg {
   margin-bottom: 10px;
   opacity: 0.4;
+}
+
+.od-support-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: #f8fafc;
+  border: 1px solid #dfe7f1;
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 24px;
+}
+
+.od-support-card__title {
+  margin: 0 0 4px;
+  color: #1e293b;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.od-support-card__text {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 /* ===== Cancel section ===== */
@@ -378,6 +519,12 @@
   border-color: #dc3545;
 }
 .od-btn--danger:hover { background: #bb2d3b; }
+.od-btn--primary {
+  background: #0a7f3f;
+  color: #fff;
+  border-color: #0a7f3f;
+}
+.od-btn--primary:hover { background: #076b35; }
 .od-btn--outline {
   background: #fff;
   color: #555;
@@ -435,6 +582,24 @@
 @media (max-width: 600px) {
   .od-summary {
     grid-template-columns: 1fr;
+  }
+  .od-payment-cta {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .od-reschedule-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .od-reschedule-row .od-btn {
+    width: 100%;
+  }
+  .od-support-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .od-support-card .od-btn {
+    width: 100%;
   }
   .od-timeline__label {
     font-size: 10px;

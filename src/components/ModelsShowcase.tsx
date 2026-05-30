@@ -116,9 +116,9 @@ export default function ModelsShowcase() {
             </button>
 
             <div className="hero-image-wrapper">
-              <img 
-                src={getThumbnail(product)} 
-                alt={product.name} 
+              <img
+                src={getThumbnail(product)}
+                alt={product.name}
                 className="hero-image"
                 key={product.productCode} // Force re-animation
               />
@@ -174,8 +174,8 @@ export default function ModelsShowcase() {
           {/* Pagination Dots */}
           <div className="hero-dots">
             {items.map((_, idx) => (
-              <span 
-                key={idx} 
+              <span
+                key={idx}
                 className={`dot ${idx === activeIndex ? 'active' : ''}`}
                 onClick={() => setIndex(idx)}
               />

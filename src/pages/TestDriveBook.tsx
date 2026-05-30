@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { productService } from '../services/product.service';
 import { testDriveService } from '../services/testDrive.service';
+import { customerService } from '../services/customer.service';
 import { useAuth } from '../context/AuthContext';
 import { sharedDataService } from '../services/shared-data.service';
 import type { Product } from '../types/product.types';
 import type { TestDriveCreateRequest } from '../types/testDrive.types';
+import { getTestDriveKycGateCopy, isKycVerified, shouldShowKycAction } from '../utils/kyc';
 
 interface FormState {
   variantCode: string;
@@ -27,6 +29,30 @@ export default function TestDriveBook() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [kycStatus, setKycStatus] = useState<string | null>(null);
+  const [loadingKyc, setLoadingKyc] = useState(false);
+  const [kycError, setKycError] = useState<string | null>(null);
+
+  const kycGateCopy = getTestDriveKycGateCopy(kycStatus);
+  const kycReady = isKycVerified(kycStatus);
+
+  const loadKycStatus = useCallback(async () => {
+    setLoadingKyc(true);
+    setKycError(null);
+    try {
+      const response = await customerService.getProfile();
+      if (response.code === 200 && response.data) {
+        setKycStatus(response.data.kycStatus);
+      } else {
+        throw new Error(response.message || 'Không thể kiểm tra trạng thái KYC');
+      }
+    } catch (err) {
+      setKycStatus(null);
+      setKycError(err instanceof Error ? err.message : 'Không thể kiểm tra trạng thái KYC');
+    } finally {
+      setLoadingKyc(false);
+    }
+  }, []);
 
   const [formState, setFormState] = useState<FormState>({
     variantCode: '',
@@ -49,6 +75,13 @@ export default function TestDriveBook() {
       openLoginModal(() => navigate(`/test-drive-book/${productId}`));
     }
   }, [isLoggedIn, openLoginModal, navigate, productId]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    setKycStatus(null);
+    setKycError(null);
+    void loadKycStatus();
+  }, [isLoggedIn, loadKycStatus]);
 
   // Fetch product data
   useEffect(() => {
@@ -127,6 +160,21 @@ export default function TestDriveBook() {
   };
 
   const validateForm = (): boolean => {
+    if (loadingKyc) {
+      setSubmitError('Đang kiểm tra trạng thái KYC, vui lòng thử lại sau vài giây.');
+      return false;
+    }
+
+    if (kycError) {
+      setSubmitError(kycError);
+      return false;
+    }
+
+    if (!kycReady) {
+      setSubmitError(kycGateCopy.message);
+      return false;
+    }
+
     if (!formState.scheduledDate) {
       setSubmitError('Vui lòng chọn ngày giờ lái thử');
       return false;
@@ -192,6 +240,12 @@ export default function TestDriveBook() {
     }
   };
 
+  const handleGoToKyc = () => {
+    navigate('/profile');
+  };
+
+  const submitDisabled = submitting || loadingKyc || !!kycError || !kycReady;
+
   if (loading) {
     return (
       <div style={{ padding: '40px 20px', textAlign: 'center' }}>
@@ -236,6 +290,49 @@ export default function TestDriveBook() {
 
       <h1 style={{ fontSize: '28px', marginBottom: '8px', color: '#333' }}>Đặt lái thử</h1>
       <p style={{ color: '#666', marginBottom: '30px', fontSize: '14px' }}>{product.name}</p>
+
+      {(loadingKyc || kycError || !kycReady) && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '14px',
+            padding: '14px 16px',
+            marginBottom: '20px',
+            border: '1px solid #f0c36d',
+            borderLeft: '4px solid #d97706',
+            borderRadius: '8px',
+            backgroundColor: '#fffbeb',
+          }}
+        >
+          <div>
+            <strong style={{ display: 'block', color: '#92400e', fontSize: '15px', marginBottom: '4px' }}>
+              {loadingKyc
+                ? 'Đang kiểm tra định danh KYC...'
+                : kycError
+                  ? 'Không kiểm tra được KYC'
+                  : kycGateCopy.title}
+            </strong>
+            <p style={{ color: '#6b4e16', fontSize: '14px', lineHeight: 1.45, margin: 0 }}>
+              {loadingKyc
+                ? 'Vui lòng chờ trong giây lát.'
+                : kycError ?? kycGateCopy.message}
+            </p>
+          </div>
+          {!loadingKyc && !kycError && shouldShowKycAction(kycStatus) && kycGateCopy.actionLabel && (
+            <button type="button" className="btn btn-primary" onClick={handleGoToKyc} style={{ whiteSpace: 'nowrap' }}>
+              {kycGateCopy.actionLabel}
+            </button>
+          )}
+          {kycError && (
+            <button type="button" className="btn btn-secondary" onClick={() => void loadKycStatus()} style={{ whiteSpace: 'nowrap' }}>
+              Thử lại
+            </button>
+          )}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* Product info (read-only) */}
@@ -415,16 +512,16 @@ export default function TestDriveBook() {
         {/* Submit button */}
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitDisabled}
           className="btn btn-primary"
           style={{
             padding: '12px 20px',
             fontSize: '16px',
-            opacity: submitting ? 0.7 : 1,
-            cursor: submitting ? 'not-allowed' : 'pointer',
+            opacity: submitDisabled ? 0.7 : 1,
+            cursor: submitDisabled ? 'not-allowed' : 'pointer',
           }}
         >
-          {submitting ? 'Đang xử lý...' : 'Đặt lái thử'}
+          {submitting ? 'Đang xử lý...' : kycReady ? 'Đặt lái thử' : 'Cần KYC để đặt lái thử'}
         </button>
       </form>
     </div>

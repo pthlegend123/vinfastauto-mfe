@@ -4,6 +4,7 @@ import { ArrowLeft, Eye, Plus } from 'lucide-react';
 import { maintenanceService } from '../services/maintenance.service';
 import { useAuth } from '../context/AuthContext';
 import type { MaintenanceBookingDto, MaintenanceStatus } from '../types/maintenance.types';
+import '../styles/shared-tables.css';
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
   PERIODIC_MAINTENANCE: 'Bảo dưỡng định kỳ',
@@ -199,8 +200,8 @@ export default function MyMaintenance() {
           </button>
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff' }}>
+        <div className="app-table-wrap">
+          <table className="app-table app-table--sticky-actions" style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff' }}>
             <thead>
               <tr style={{ backgroundColor: '#f5f5f5', borderBottom: '2px solid #ddd' }}>
                 <th style={{ padding: '15px', textAlign: 'left', fontWeight: '600', color: '#333' }}>
@@ -247,8 +248,11 @@ export default function MyMaintenance() {
                       {getStatusLabel(booking.status)}
                     </span>
                   </td>
-                  <td style={{ padding: '15px', textAlign: 'center' }}>
+                  <td className="app-table__actions" style={{ padding: '15px', textAlign: 'center' }}>
                     <button
+                      aria-label="Xem chi tiết lịch bảo dưỡng"
+                      data-tooltip="Chi tiết"
+                      title="Xem chi tiết lịch bảo dưỡng"
                       onClick={() => navigate(`/my-maintenance/${booking.bookingCode}`)}
                       style={{
                         display: 'inline-flex',

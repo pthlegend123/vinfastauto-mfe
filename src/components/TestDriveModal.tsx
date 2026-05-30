@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { productService } from '../services/product.service';
 import { testDriveService } from '../services/testDrive.service';
+import { customerService } from '../services/customer.service';
 import { sharedDataService } from '../services/shared-data.service';
 import { useModal } from '../context/ModalContext';
 import type { Product } from '../types/product.types';
 import type { TestDriveCreateRequest } from '../types/testDrive.types';
+import { getTestDriveKycGateCopy, isKycVerified, shouldShowKycAction } from '../utils/kyc';
 import './TestDriveModal.css';
 
 interface FormState {
@@ -51,6 +53,30 @@ export default function TestDriveModal() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [kycStatus, setKycStatus] = useState<string | null>(null);
+  const [loadingKyc, setLoadingKyc] = useState(false);
+  const [kycError, setKycError] = useState<string | null>(null);
+
+  const kycGateCopy = getTestDriveKycGateCopy(kycStatus);
+  const kycReady = isKycVerified(kycStatus);
+
+  const loadKycStatus = useCallback(async () => {
+    setLoadingKyc(true);
+    setKycError(null);
+    try {
+      const response = await customerService.getProfile();
+      if (response.code === 200 && response.data) {
+        setKycStatus(response.data.kycStatus);
+      } else {
+        throw new Error(response.message || 'Không thể kiểm tra trạng thái KYC');
+      }
+    } catch (err) {
+      setKycStatus(null);
+      setKycError(err instanceof Error ? err.message : 'Không thể kiểm tra trạng thái KYC');
+    } finally {
+      setLoadingKyc(false);
+    }
+  }, []);
 
   // Reset form and load products whenever modal opens
   useEffect(() => {
@@ -59,6 +85,8 @@ export default function TestDriveModal() {
     setSubmitError(null);
     setSuccessMessage(null);
     setSubmitting(false);
+    setKycStatus(null);
+    setKycError(null);
     setFormState({
       productCode: testDriveProductCode ?? '',
       variantCode: testDriveVariantCode ?? '',
@@ -67,6 +95,8 @@ export default function TestDriveModal() {
       expectedDurationMinutes: 30,
       note: '',
     });
+
+    void loadKycStatus();
 
     const loadProducts = async () => {
       setLoadingProducts(true);
@@ -100,7 +130,7 @@ export default function TestDriveModal() {
     };
 
     loadProducts();
-  }, [testDriveOpen, testDriveProductCode, testDriveVariantCode]);
+  }, [loadKycStatus, testDriveOpen, testDriveProductCode, testDriveVariantCode]);
 
   // When picker product selection changes, update selectedProduct and reset variantCode
   useEffect(() => {
@@ -125,6 +155,18 @@ export default function TestDriveModal() {
   };
 
   const validate = (): boolean => {
+    if (loadingKyc) {
+      setSubmitError('Đang kiểm tra trạng thái KYC, vui lòng thử lại sau vài giây.');
+      return false;
+    }
+    if (kycError) {
+      setSubmitError(kycError);
+      return false;
+    }
+    if (!kycReady) {
+      setSubmitError(kycGateCopy.message);
+      return false;
+    }
     if (isPickerMode && !formState.productCode) {
       setSubmitError('Vui lòng chọn sản phẩm');
       return false;
@@ -148,6 +190,11 @@ export default function TestDriveModal() {
       return false;
     }
     return true;
+  };
+
+  const handleGoToKyc = () => {
+    closeTestDriveModal();
+    navigate('/profile');
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -200,6 +247,35 @@ export default function TestDriveModal() {
         </div>
 
         <form className="td-modal-body" onSubmit={handleSubmit}>
+          {(loadingKyc || kycError || !kycReady) && (
+            <div className="td-kyc-gate">
+              <div>
+                <strong>
+                  {loadingKyc
+                    ? 'Đang kiểm tra định danh KYC...'
+                    : kycError
+                      ? 'Không kiểm tra được KYC'
+                      : kycGateCopy.title}
+                </strong>
+                <p>
+                  {loadingKyc
+                    ? 'Vui lòng chờ trong giây lát.'
+                    : kycError ?? kycGateCopy.message}
+                </p>
+              </div>
+              {!loadingKyc && !kycError && shouldShowKycAction(kycStatus) && kycGateCopy.actionLabel && (
+                <button type="button" className="btn btn-primary" onClick={handleGoToKyc}>
+                  {kycGateCopy.actionLabel}
+                </button>
+              )}
+              {kycError && (
+                <button type="button" className="btn btn-secondary" onClick={() => void loadKycStatus()}>
+                  Thử lại
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Product picker (picker mode) */}
           {isPickerMode && (
             <div className="td-field">
@@ -335,9 +411,9 @@ export default function TestDriveModal() {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={submitting || !!successMessage}
+              disabled={submitting || !!successMessage || loadingKyc || !!kycError || !kycReady}
             >
-              {submitting ? 'Đang xử lý...' : 'Đặt lái thử'}
+              {submitting ? 'Đang xử lý...' : kycReady ? 'Đặt lái thử' : 'Cần KYC để đặt lái thử'}
             </button>
           </div>
         </form>

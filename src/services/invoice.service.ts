@@ -6,8 +6,4 @@ export const invoiceService = {
   getInvoicesByOrder: async (orderCode: string): Promise<ApiResponse<InvoiceResponse[]>> => {
     return apiClient.get<ApiResponse<InvoiceResponse[]>>(`/orders/${orderCode}/invoices`);
   },
-
-  getInvoiceByCode: async (invoiceCode: string): Promise<ApiResponse<InvoiceResponse>> => {
-    return apiClient.get<ApiResponse<InvoiceResponse>>(`/invoices/${invoiceCode}`);
-  },
 };

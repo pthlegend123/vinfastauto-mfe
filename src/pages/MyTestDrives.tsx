@@ -4,6 +4,7 @@ import { ArrowLeft, Eye } from 'lucide-react';
 import { testDriveService } from '../services/testDrive.service';
 import { useAuth } from '../context/AuthContext';
 import type { TestDriveDto } from '../types/testDrive.types';
+import '../styles/shared-tables.css';
 
 export default function MyTestDrives() {
   const navigate = useNavigate();
@@ -179,8 +180,9 @@ export default function MyTestDrives() {
           </button>
         </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div className="app-table-wrap">
           <table
+            className="app-table app-table--sticky-actions"
             style={{
               width: '100%',
               borderCollapse: 'collapse',
@@ -228,8 +230,11 @@ export default function MyTestDrives() {
                       {getStatusLabel(booking.status)}
                     </span>
                   </td>
-                  <td style={{ padding: '15px', textAlign: 'center' }}>
+                  <td className="app-table__actions" style={{ padding: '15px', textAlign: 'center' }}>
                     <button
+                      aria-label="Xem chi tiết lịch lái thử"
+                      data-tooltip="Chi tiết"
+                      title="Xem chi tiết lịch lái thử"
                       onClick={() => navigate(`/my-test-drives/${booking.testDriveCode}`)}
                       style={{
                         display: 'inline-flex',

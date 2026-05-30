@@ -7,13 +7,17 @@ export type OrderStatus =
   | 'REFUND_PENDING'
   | 'REFUNDED';
 
+export type HandoverRescheduleStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
 export interface OrderResponse {
   orderCode: string;
   customerCode: string;
   customerName?: string;
   sku: string;
   productName: string;
+  variantName?: string;
   colorName?: string;
+  colorHex?: string;
   assignedEmployeeCode?: string;
   assignedEmployeeName?: string;
   depositAmount: number;
@@ -21,6 +25,12 @@ export interface OrderResponse {
   status: OrderStatus;
   testDriveDate?: string;
   handoverDate?: string;
+  requestedHandoverDate?: string;
+  handoverRescheduleReason?: string;
+  handoverRescheduleNote?: string;
+  handoverRescheduleStatus?: HandoverRescheduleStatus;
+  handoverRescheduleReviewedAt?: string;
+  handoverRescheduleReviewedBy?: string;
   createdAt: string;
   updatedAt?: string;
 }
@@ -35,4 +45,9 @@ export interface CreateOrderRequest {
 
 export interface OrderCancelRequest {
   reason: string;
+}
+
+export interface HandoverRescheduleRequest {
+  requestedHandoverDate: string;
+  reason?: string;
 }

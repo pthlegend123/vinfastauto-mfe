@@ -10,6 +10,15 @@ type ForgotPasswordMode = 'phone' | 'otp-code' | 'new-password' | 'success';
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
 
+const getTelegramUrl = (data: unknown) => {
+  if (typeof data === 'string') return data;
+  if (data && typeof data === 'object' && 'telegramUrl' in data) {
+    const { telegramUrl } = data as { telegramUrl?: unknown };
+    return typeof telegramUrl === 'string' ? telegramUrl : '';
+  }
+  return '';
+};
+
 // ─── OTP digit input component ───────────────────────────────────────────────
 
 interface OtpInputProps {
@@ -180,7 +189,7 @@ export default function ForgotPasswordModal({ open, onClose }: ForgotPasswordMod
       if (res.code === 200) {
         setPhone(normalizedPhone);
         setOtpDigits(Array(OTP_LENGTH).fill(''));
-        setTelegramUrl(typeof res.data === 'string' ? res.data : (res.data as any)?.telegramUrl || '');
+        setTelegramUrl(getTelegramUrl(res.data));
         switchMode('otp-code');
         startResendTimer();
       } else {
@@ -216,7 +225,7 @@ export default function ForgotPasswordModal({ open, onClose }: ForgotPasswordMod
       const res = await authService.sendForgotPasswordOtp(phone);
       if (res.code === 200) {
         setOtpDigits(Array(OTP_LENGTH).fill(''));
-        setTelegramUrl(typeof res.data === 'string' ? res.data : (res.data as any)?.telegramUrl || '');
+        setTelegramUrl(getTelegramUrl(res.data));
         startResendTimer();
       } else {
         setError(res.message || 'Không thể gửi lại OTP');

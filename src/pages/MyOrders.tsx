@@ -1,15 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Eye, X } from 'lucide-react';
+import { ArrowLeft, CreditCard, Eye, X } from 'lucide-react';
 import { orderService } from '../services/order.service';
 import { useAuth } from '../context/AuthContext';
 import type { OrderResponse, OrderStatus } from '../types/order.types';
+import { formatCurrency, formatDate } from '../utils/format';
+import { toCustomerErrorMessage } from '../utils/customerMessages';
+import { getOrderRemainingAmount } from '../utils/orderDisplay';
+import '../styles/shared-tables.css';
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING_DEPOSIT: 'Chờ đặt cọc',
   DEPOSIT_PAID: 'Đã đặt cọc',
-  SALES_CONFIRMED: 'Sales đã xác nhận',
-  DELIVERED: 'Đã giao xe',
+  SALES_CONFIRMED: 'Nhân viên đã xác nhận',
+  DELIVERED: 'Đã bàn giao xe',
   CANCELLED: 'Đã hủy',
   REFUND_PENDING: 'Chờ hoàn tiền',
   REFUNDED: 'Đã hoàn tiền',
@@ -41,6 +45,24 @@ interface CancelModal {
   reason: string;
 }
 
+function ColorDisplay({ name, hex }: { name?: string; hex?: string }) {
+  if (!name) return <>—</>;
+  return (
+    <span className="table-color-value">
+      {hex && (
+        <span
+          className="table-color-dot"
+          aria-hidden="true"
+          style={{
+            backgroundColor: hex,
+          }}
+        />
+      )}
+      {name}
+    </span>
+  );
+}
+
 export default function MyOrders() {
   const navigate = useNavigate();
   const { isLoggedIn, openLoginModal } = useAuth();
@@ -53,8 +75,27 @@ export default function MyOrders() {
   const [totalPages, setTotalPages] = useState(0);
   const [cancelModal, setCancelModal] = useState<CancelModal | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [payingOrderCode, setPayingOrderCode] = useState<string | null>(null);
 
   const SIZE = 10;
+
+  const fetchOrders = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await orderService.getMyOrders(page, SIZE);
+      if (response.code === 200 && response.data) {
+        setOrders(response.data.content);
+        setTotalPages(response.data.totalPages);
+      } else {
+        setError(toCustomerErrorMessage(response.message, 'Không thể tải danh sách đơn hàng.'));
+      }
+    } catch (err) {
+      setError(toCustomerErrorMessage(err instanceof Error ? err.message : null, 'Không thể tải danh sách đơn hàng.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [page]);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -65,25 +106,7 @@ export default function MyOrders() {
   useEffect(() => {
     if (!isLoggedIn) return;
     fetchOrders();
-  }, [isLoggedIn, page]);
-
-  const fetchOrders = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await orderService.getMyOrders(page, SIZE);
-      if (response.code === 200 && response.data) {
-        setOrders(response.data.content);
-        setTotalPages(response.data.totalPages);
-      } else {
-        setError(response.message || 'Không thể tải danh sách đơn hàng');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lỗi kết nối máy chủ');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchOrders, isLoggedIn]);
 
   const handleCancelConfirm = async () => {
     if (!cancelModal || !cancelModal.reason.trim()) return;
@@ -98,24 +121,31 @@ export default function MyOrders() {
         fetchOrders();
         setTimeout(() => setSuccessMsg(null), 3000);
       } else {
-        setError(response.message || 'Không thể hủy đơn hàng');
+        setError(toCustomerErrorMessage(response.message, 'Không thể hủy đơn hàng.'));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lỗi kết nối máy chủ');
+      setError(toCustomerErrorMessage(err instanceof Error ? err.message : null, 'Không thể hủy đơn hàng.'));
     } finally {
       setCancelling(false);
     }
   };
 
-  const formatDate = (dateStr: string) =>
-    new Intl.DateTimeFormat('vi-VN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(new Date(dateStr));
-
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  const handleDepositPayment = async (orderCode: string) => {
+    try {
+      setPayingOrderCode(orderCode);
+      setError(null);
+      const response = await orderService.createDepositPaymentUrl(orderCode);
+      if ((response.code === 200 || response.code === 201) && response.data) {
+        window.location.href = response.data;
+      } else {
+        setError(toCustomerErrorMessage(response.message, 'Không thể tạo link thanh toán đặt cọc.'));
+      }
+    } catch (err) {
+      setError(toCustomerErrorMessage(err instanceof Error ? err.message : null, 'Không thể mở lại VNPay.'));
+    } finally {
+      setPayingOrderCode(null);
+    }
+  };
 
   if (!isLoggedIn) {
     return (
@@ -210,11 +240,11 @@ export default function MyOrders() {
         </div>
       ) : (
         <>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff' }}>
+          <div className="app-table-wrap">
+            <table className="app-table app-table--sticky-actions">
               <thead>
                 <tr style={{ backgroundColor: '#f5f5f5', borderBottom: '2px solid #ddd' }}>
-                  {['Mã đơn', 'Sản phẩm', 'Phiên bản', 'Màu', 'Đặt cọc', 'Trạng thái', 'Ngày tạo', 'Hành động'].map(h => (
+                  {['Mã đơn', 'Sản phẩm', 'Phiên bản', 'Màu', 'Đặt cọc', 'Còn lại', 'Trạng thái', 'Ngày tạo', 'Hành động'].map(h => (
                     <th key={h} style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '600', color: '#333', whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
@@ -237,13 +267,16 @@ export default function MyOrders() {
                       {order.productName || order.sku}
                     </td>
                     <td style={{ padding: '12px 15px', color: '#555', fontSize: '13px' }}>
-                      {'—'}
+                      {order.variantName || '—'}
                     </td>
                     <td style={{ padding: '12px 15px', color: '#555', fontSize: '13px' }}>
-                      {order.colorName || '—'}
+                      <ColorDisplay name={order.colorName} hex={order.colorHex} />
                     </td>
                     <td style={{ padding: '12px 15px', color: '#333', fontSize: '13px', whiteSpace: 'nowrap' }}>
                       {formatCurrency(order.depositAmount)}
+                    </td>
+                    <td style={{ padding: '12px 15px', color: '#333', fontSize: '13px', whiteSpace: 'nowrap' }}>
+                      {getOrderRemainingAmount(order) !== null ? formatCurrency(getOrderRemainingAmount(order)) : '—'}
                     </td>
                     <td style={{ padding: '12px 15px' }}>
                       <span style={{ ...BADGE_BASE, ...ORDER_STATUS_COLORS[order.status] }}>
@@ -253,9 +286,12 @@ export default function MyOrders() {
                     <td style={{ padding: '12px 15px', color: '#555', fontSize: '13px', whiteSpace: 'nowrap' }}>
                       {formatDate(order.createdAt)}
                     </td>
-                    <td style={{ padding: '12px 15px' }}>
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <td className="app-table__actions" style={{ padding: '12px 15px' }}>
+                      <div className="app-table__actions-row" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                         <button
+                          aria-label="Chi tiết đơn hàng"
+                          data-tooltip="Chi tiết"
+                          title="Chi tiết đơn hàng"
                           onClick={() => navigate(`/my-orders/${order.orderCode}`)}
                           style={{
                             display: 'inline-flex',
@@ -273,8 +309,36 @@ export default function MyOrders() {
                         >
                           <Eye size={14} /> Chi tiết
                         </button>
+                        {order.status === 'PENDING_DEPOSIT' && (
+                          <button
+                            aria-label="Thanh toán đặt cọc"
+                            data-tooltip={payingOrderCode === order.orderCode ? 'Đang mở VNPay' : 'Thanh toán'}
+                            title={payingOrderCode === order.orderCode ? 'Đang mở VNPay' : 'Thanh toán đặt cọc'}
+                            onClick={() => handleDepositPayment(order.orderCode)}
+                            disabled={payingOrderCode === order.orderCode}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              backgroundColor: payingOrderCode === order.orderCode ? '#9bbce0' : '#0a7f3f',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '6px 12px',
+                              borderRadius: '6px',
+                              cursor: payingOrderCode === order.orderCode ? 'not-allowed' : 'pointer',
+                              fontSize: '12px',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            <CreditCard size={14} />
+                            {payingOrderCode === order.orderCode ? 'Đang mở VNPay...' : 'Thanh toán'}
+                          </button>
+                        )}
                         {CANCELLABLE.includes(order.status) && (
                           <button
+                            aria-label="Hủy đơn hàng"
+                            data-tooltip="Hủy đơn"
+                            title="Hủy đơn hàng"
                             onClick={() => setCancelModal({ orderCode: order.orderCode, reason: '' })}
                             style={{
                               display: 'inline-flex',

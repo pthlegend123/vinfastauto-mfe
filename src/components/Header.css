@@ -102,6 +102,43 @@
   display: none;
 }
 
+.mobile-drawer {
+  position: absolute;
+  top: 80px;
+  left: 0;
+  right: 0;
+  display: none;
+  padding: 12px 20px 20px;
+  background: #fff;
+  color: #111;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.14);
+}
+
+.mobile-drawer__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.mobile-drawer__section + .mobile-drawer__section {
+  border-top: 1px solid #f0f0f0;
+}
+
+.mobile-drawer button {
+  width: 100%;
+  padding: 12px 0;
+  color: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.mobile-drawer__logout {
+  color: #e53935 !important;
+}
+
 .account-wrapper {
   position: relative;
 }
@@ -186,5 +223,18 @@
   }
   .mobile-menu {
     display: flex;
+  }
+  .mobile-drawer {
+    display: block;
+  }
+  .header-container {
+    padding: 0 20px;
+  }
+  .header-actions {
+    gap: 10px;
+  }
+  .register-btn {
+    padding: 10px 12px;
+    font-size: 12px;
   }
 }

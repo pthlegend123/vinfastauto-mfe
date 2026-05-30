@@ -1,6 +1,11 @@
 import { apiClient } from './apiClient';
 import type { ApiResponse } from '../types/product.types';
-import type { OrderResponse, CreateOrderRequest, OrderCancelRequest } from '../types/order.types';
+import type {
+  OrderResponse,
+  CreateOrderRequest,
+  HandoverRescheduleRequest,
+  OrderCancelRequest,
+} from '../types/order.types';
 
 interface PagedResponse<T> {
   content: T[];
@@ -26,10 +31,21 @@ export const orderService = {
     return apiClient.post<ApiResponse<string>>('/orders/create', request);
   },
 
+  createDepositPaymentUrl: async (orderCode: string): Promise<ApiResponse<string>> => {
+    return apiClient.post<ApiResponse<string>>(`/orders/${orderCode}/deposit-payment`, {});
+  },
+
   cancelOrder: async (
     orderCode: string,
     request: OrderCancelRequest
   ): Promise<ApiResponse<OrderResponse>> => {
     return apiClient.post<ApiResponse<OrderResponse>>(`/orders/${orderCode}/cancel`, request);
+  },
+
+  requestHandoverReschedule: async (
+    orderCode: string,
+    request: HandoverRescheduleRequest
+  ): Promise<ApiResponse<OrderResponse>> => {
+    return apiClient.post<ApiResponse<OrderResponse>>(`/orders/${orderCode}/handover-reschedule`, request);
   },
 };

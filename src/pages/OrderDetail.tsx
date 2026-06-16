@@ -457,6 +457,12 @@ export default function OrderDetail() {
             <span className="od-field__value">{formatDate(order.handoverDate)}</span>
           </div>
         )}
+        {order.handoverLocation && (
+          <div className="od-field">
+            <span className="od-field__label">Địa điểm nhận xe</span>
+            <span className="od-field__value">{order.handoverLocation}</span>
+          </div>
+        )}
         {order.handoverRescheduleStatus && (
           <div className="od-field">
             <span className="od-field__label">Yêu cầu dời lịch</span>

@@ -25,6 +25,7 @@ export interface OrderResponse {
   status: OrderStatus;
   testDriveDate?: string;
   handoverDate?: string;
+  handoverLocation?: string;
   requestedHandoverDate?: string;
   handoverRescheduleReason?: string;
   handoverRescheduleNote?: string;

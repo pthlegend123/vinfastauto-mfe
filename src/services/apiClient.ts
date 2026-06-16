@@ -54,6 +54,21 @@ export const apiClient = {
     return response.json() as Promise<T>;
   },
 
+  getBlob: async (url: string): Promise<Blob> => {
+    const response = await fetch(`${BASE_URL}${url}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+    if (response.status === 401) {
+      handleUnauthorized();
+      throw new Error('Session expired. Please log in again.');
+    }
+    if (!response.ok) {
+      throw new Error(await getApiErrorMessage(response, `Error fetching ${url}: ${response.statusText}`));
+    }
+    return response.blob();
+  },
+
   post: async <T>(url: string, body?: unknown): Promise<T> => {
     const response = await fetch(`${BASE_URL}${url}`, {
       method: 'POST',

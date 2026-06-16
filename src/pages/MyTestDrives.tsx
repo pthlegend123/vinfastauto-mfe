@@ -231,6 +231,7 @@ export default function MyTestDrives() {
                     </span>
                   </td>
                   <td className="app-table__actions" style={{ padding: '15px', textAlign: 'center' }}>
+                    <div className="app-table__actions-row" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     <button
                       aria-label="Xem chi tiết lịch lái thử"
                       data-tooltip="Chi tiết"
@@ -252,6 +253,7 @@ export default function MyTestDrives() {
                     >
                       <Eye size={16} /> Chi tiết
                     </button>
+                    </div>
                   </td>
                 </tr>
               ))}

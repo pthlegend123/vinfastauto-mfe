@@ -136,6 +136,11 @@
   background: #f8fafc;
 }
 
+.app-table--sticky-actions .app-table__actions:has(button[data-tooltip]:hover),
+.app-table--sticky-actions .app-table__actions:focus-within {
+  z-index: 4;
+}
+
 .app-table__actions-row {
   display: flex !important;
   flex-wrap: nowrap !important;
@@ -162,6 +167,22 @@
   line-height: 0 !important;
   white-space: nowrap !important;
   overflow: visible;
+  border: 0;
+  background: #0066cc;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.app-table__actions-row button:hover:not(:disabled),
+.app-table__actions button:hover:not(:disabled) {
+  background: #0056ad;
+}
+
+.app-table__actions-row button:disabled,
+.app-table__actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .app-table__actions svg {

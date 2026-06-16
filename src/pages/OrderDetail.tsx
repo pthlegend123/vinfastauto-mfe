@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CalendarClock, CreditCard, FileText, X } from 'lucide-react';
+import { ArrowLeft, CalendarClock, CreditCard, Download, FileText, X } from 'lucide-react';
 import { orderService } from '../services/order.service';
 import { invoiceService } from '../services/invoice.service';
 import { useAuth } from '../context/AuthContext';
@@ -164,6 +164,7 @@ export default function OrderDetail() {
   const [requestedHandoverDate, setRequestedHandoverDate] = useState('');
   const [handoverReason, setHandoverReason] = useState('');
   const [handoverSubmitting, setHandoverSubmitting] = useState(false);
+  const [downloadingInvoiceCode, setDownloadingInvoiceCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -277,6 +278,31 @@ export default function OrderDetail() {
       setError(toCustomerErrorMessage(err instanceof Error ? err.message : null, 'Không thể gửi yêu cầu dời lịch nhận xe.'));
     } finally {
       setHandoverSubmitting(false);
+    }
+  };
+
+  const savePdf = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadInvoice = async (invoice: InvoiceResponse) => {
+    if (!orderCode) return;
+    try {
+      setDownloadingInvoiceCode(invoice.invoiceCode);
+      setError(null);
+      const blob = await invoiceService.downloadInvoicePdf(orderCode, invoice.invoiceCode);
+      savePdf(blob, `hoa-don-${invoice.invoiceCode}.pdf`);
+    } catch (err) {
+      setError(toCustomerErrorMessage(err instanceof Error ? err.message : null, 'Không thể tải file PDF hóa đơn.'));
+    } finally {
+      setDownloadingInvoiceCode(null);
     }
   };
 
@@ -555,7 +581,7 @@ export default function OrderDetail() {
           </div>
         ) : (
           <div className="od-table-wrap app-table-wrap">
-            <table className="od-table app-table">
+            <table className="od-table app-table app-table--sticky-actions">
               <thead>
                 <tr>
                   <th>Mã hóa đơn</th>
@@ -564,6 +590,7 @@ export default function OrderDetail() {
                   <th>Phương thức</th>
                   <th>Trạng thái</th>
                   <th>Ngày tạo</th>
+                  <th>Hành động</th>
                 </tr>
               </thead>
               <tbody>
@@ -579,6 +606,21 @@ export default function OrderDetail() {
                       </span>
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>{formatDate(inv.createdAt)}</td>
+                    <td className="app-table__actions">
+                      <div className="app-table__actions-row">
+                        <button
+                          type="button"
+                          aria-label="Xuất hóa đơn PDF"
+                          data-tooltip={downloadingInvoiceCode === inv.invoiceCode ? 'Đang tải' : 'Xuất PDF'}
+                          title="Xuất hóa đơn PDF"
+                          onClick={() => handleDownloadInvoice(inv)}
+                          disabled={downloadingInvoiceCode === inv.invoiceCode}
+                        >
+                          <Download size={15} />
+                          {downloadingInvoiceCode === inv.invoiceCode ? 'Đang tải...' : 'Xuất hóa đơn'}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

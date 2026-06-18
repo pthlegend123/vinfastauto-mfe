@@ -2,11 +2,23 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { productService } from '../services/product.service';
 import { sharedDataService } from '../services/shared-data.service';
-import type { Product, ProductSku, ProductVariant } from '../types/product.types';
-import { ArrowLeft, Shield, Gauge, Users, Zap } from 'lucide-react';
+import type { Product, ProductImage, ProductSku, ProductVariant } from '../types/product.types';
+import { ArrowLeft, ChevronLeft, ChevronRight, Shield, Gauge, Users, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useModal } from '../context/ModalContext';
 import './CarDetail.css';
+
+const FALLBACK_CAR_IMAGE = '/images/vf_model_suv.png';
+
+const getOrderedImages = (images?: ProductImage[]) =>
+  [...(images ?? [])]
+    .filter(image => Boolean(image.imageUrl))
+    .sort((a, b) => (a.displayOrder - b.displayOrder) || (a.id - b.id));
+
+const getDefaultImageIndex = (images: ProductImage[]) => {
+  const thumbnailIndex = images.findIndex(image => image.isThumbnail);
+  return thumbnailIndex >= 0 ? thumbnailIndex : 0;
+};
 
 export default function CarDetail() {
   const { productId } = useParams<{ productId: string }>();
@@ -25,19 +37,26 @@ export default function CarDetail() {
   // View state — drives image + color picker display
   const [viewVariant, setViewVariant] = useState<ProductVariant | null>(null);
   const [viewSku, setViewSku] = useState<ProductSku | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+
+  const selectViewSku = (sku: ProductSku | null) => {
+    const skuImages = getOrderedImages(sku?.images);
+    setViewSku(sku);
+    setSelectedImageIndex(getDefaultImageIndex(skuImages));
+  };
 
   // Init view state once product is available
   useEffect(() => {
     if (product && !viewVariant) {
       const first = product.variants?.[0] ?? null;
       setViewVariant(first);
-      setViewSku(first?.skus?.[0] ?? null);
+      selectViewSku(first?.skus?.[0] ?? null);
     }
   }, [product, viewVariant]);
 
   const handleViewVariantSelect = (variant: ProductVariant) => {
     setViewVariant(variant);
-    setViewSku(variant.skus?.[0] ?? null);
+    selectViewSku(variant.skus?.[0] ?? null);
   };
 
   const handleDeposit = () => {
@@ -135,23 +154,29 @@ export default function CarDetail() {
     return prices.length > 0 ? Math.min(...prices) : null;
   };
 
-  const getDisplayImage = () => {
-    if (viewSku?.images?.length) {
-      const thumb = viewSku.images.find(img => img.isThumbnail);
-      return thumb?.imageUrl || viewSku.images[0].imageUrl;
-    }
+  const getFallbackDisplayImage = () => {
     for (const v of product.variants ?? []) {
       for (const s of v.skus ?? []) {
-        const t = s.images?.find(i => i.isThumbnail);
-        if (t) return t.imageUrl;
-        if (s.images?.[0]) return s.images[0].imageUrl;
+        const images = getOrderedImages(s.images);
+        const thumbnail = images.find(image => image.isThumbnail);
+        if (thumbnail) return thumbnail.imageUrl;
+        if (images[0]) return images[0].imageUrl;
       }
     }
-    return '/images/vf_model_suv.png';
+    return FALLBACK_CAR_IMAGE;
+  };
+
+  const selectedSkuImages = getOrderedImages(viewSku?.images);
+
+  const handleGalleryMove = (direction: -1 | 1) => {
+    const totalImages = selectedSkuImages.length;
+    if (totalImages <= 1) return;
+    setSelectedImageIndex(current => (current + direction + totalImages) % totalImages);
   };
 
   const lowestPrice = getLowestPrice(product);
-  const displayImage = getDisplayImage();
+  const displayImage = selectedSkuImages[selectedImageIndex]?.imageUrl || getFallbackDisplayImage();
+  const hasGalleryControls = selectedSkuImages.length > 1;
   const viewSkus = viewVariant?.skus ?? [];
   const selectedPrice = viewVariant?.price ?? lowestPrice ?? undefined;
   const selectedStockLabel = viewSku
@@ -175,12 +200,32 @@ export default function CarDetail() {
         {/* Left: car image + color picker */}
         <div className="cd-image-panel">
           <div className="cd-image-stage">
+            {hasGalleryControls && (
+              <button
+                type="button"
+                className="cd-gallery-nav cd-gallery-nav--prev"
+                onClick={() => handleGalleryMove(-1)}
+                aria-label="Xem ảnh trước"
+              >
+                <ChevronLeft size={30} />
+              </button>
+            )}
             <img
-              key={viewSku?.sku ?? 'default'}
+              key={`${viewSku?.sku ?? 'default'}-${selectedImageIndex}`}
               src={displayImage}
               alt={product.name}
               className="cd-main-img"
             />
+            {hasGalleryControls && (
+              <button
+                type="button"
+                className="cd-gallery-nav cd-gallery-nav--next"
+                onClick={() => handleGalleryMove(1)}
+                aria-label="Xem ảnh tiếp theo"
+              >
+                <ChevronRight size={30} />
+              </button>
+            )}
           </div>
 
           {viewSkus.length > 0 && (
@@ -195,10 +240,27 @@ export default function CarDetail() {
                     className={`cd-swatch${viewSku?.sku === sku.sku ? ' active' : ''}`}
                     style={{ backgroundColor: sku.color?.colorHex ?? '#ccc' }}
                     title={sku.color?.colorName}
-                    onClick={() => setViewSku(sku)}
+                    onClick={() => selectViewSku(sku)}
                   />
                 ))}
               </div>
+            </div>
+          )}
+
+          {selectedSkuImages.length > 1 && (
+            <div className="cd-gallery-thumbs" aria-label="Ảnh của màu đang chọn">
+              {selectedSkuImages.map((image, index) => (
+                <button
+                  type="button"
+                  key={image.id}
+                  className={`cd-gallery-thumb${selectedImageIndex === index ? ' active' : ''}`}
+                  onClick={() => setSelectedImageIndex(index)}
+                  aria-label={`Xem ảnh ${index + 1}`}
+                  aria-current={selectedImageIndex === index ? 'true' : undefined}
+                >
+                  <img src={image.imageUrl} alt={`${product.name} ${viewSku?.color?.colorName ?? ''} ${index + 1}`} />
+                </button>
+              ))}
             </div>
           )}
         </div>

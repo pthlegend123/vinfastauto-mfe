@@ -17,6 +17,7 @@ import PaymentResult from './pages/PaymentResult';
 import LoginModal from './components/LoginModal';
 import TestDriveModal from './components/TestDriveModal';
 import OrderModal from './components/OrderModal';
+import ChatWidget from './components/ChatWidget';
 import { AuthProvider } from './context/AuthContext';
 import { ModalProvider } from './context/ModalContext';
 
@@ -59,6 +60,7 @@ function App() {
           <LoginModal />
           <TestDriveModal />
           <OrderModal />
+          <ChatWidget />
         </div>
       </ModalProvider>
     </AuthProvider>
